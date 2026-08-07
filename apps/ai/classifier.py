@@ -16,6 +16,23 @@ import json
 import os
 import re
 import urllib.request
+from pathlib import Path
+
+
+def _load_env_file() -> None:
+    """Load local .env without an extra dependency; existing process env wins."""
+    path = Path(__file__).with_name(".env")
+    if not path.exists():
+        return
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_env_file()
 
 from normalizer import normalize
 
@@ -26,6 +43,7 @@ LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://72.61.142.52:20128/v1")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "btlbagus")
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
+ALLOW_INSECURE_LLM = os.environ.get("ALLOW_INSECURE_LLM", "false").lower() in {"1", "true", "yes"}
 
 
 def _redact_pii(text: str) -> str:
@@ -123,7 +141,8 @@ def _llm_classify(text: str) -> dict | None:
     from urllib.parse import urlparse
     parsed = urlparse(LLM_BASE_URL)
     if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
-        return None
+        if not ALLOW_INSECURE_LLM:
+            return None
     safe_text = _redact_pii(text)
 
     body = json.dumps({

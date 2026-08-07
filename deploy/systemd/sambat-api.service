@@ -1,0 +1,16 @@
+[Unit]
+Description=SAMBAT API
+After=network-online.target postgresql.service sambat-ai.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/sambat-repo/apps/api
+EnvironmentFile=/root/sambat-repo/apps/api/.env
+ExecStart=/usr/local/bin/bun run src/index.ts
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

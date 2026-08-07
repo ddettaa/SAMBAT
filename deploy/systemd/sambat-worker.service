@@ -1,0 +1,11 @@
+[Unit]
+Description=SAMBAT SLA Worker
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/sambat-repo/apps/api
+EnvironmentFile=/root/sambat-repo/apps/api/.env
+ExecStart=/usr/local/bin/bun run src/worker.ts
