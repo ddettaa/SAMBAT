@@ -1,10 +1,13 @@
 {
   "name": "@sambat/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts"
+    "start": "bun run src/index.ts",
+    "worker": "bun run src/worker.ts",
+    "test:e2e": "bun run test-secure-e2e.ts",
+    "test:worker": "bun run test-worker.ts"
   },
   "dependencies": {
     "hono": "^4.6.0"

@@ -1,12 +1,10 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgis/postgis:16-3.4-alpine
     environment:
       POSTGRES_USER: sambat
-      POSTGRES_PASSWORD: sambat
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: sambat
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -15,31 +13,38 @@ services:
       timeout: 3s
       retries: 10
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
   api:
     build: ./apps/api
-    environment:
-      DATABASE_URL: postgres://sambat:sambat@db:5432/sambat
-      REDIS_URL: redis://redis:6379
+    environment: &api-env
+      DATABASE_URL: postgres://sambat:${POSTGRES_PASSWORD}@db:5432/sambat
       AI_URL: http://ai:8000
+      OPERATOR_API_KEY: ${OPERATOR_API_KEY:?set OPERATOR_API_KEY}
+      COLLECTOR_API_KEY: ${COLLECTOR_API_KEY:?set COLLECTOR_API_KEY}
+      DINAS_API_KEY: ${DINAS_API_KEY:?set DINAS_API_KEY}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     depends_on:
       db:
         condition: service_healthy
-      redis:
+      ai:
         condition: service_started
+
+  worker:
+    build: ./apps/api
+    environment: *api-env
+    command: ["sh", "-c", "while true; do bun run src/worker.ts; sleep 60; done"]
+    depends_on:
+      db:
+        condition: service_healthy
 
   ai:
     build: ./apps/ai
     environment:
-      MODEL_NAME: indolem/indobert-base-uncased
-    ports:
-      - "8000:8000"
+      LLM_BASE_URL: ${LLM_BASE_URL:?set HTTPS LLM_BASE_URL}
+      LLM_API_KEY: ${LLM_API_KEY:?set LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-btlbagus}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-45}
 
 volumes:
   pgdata:

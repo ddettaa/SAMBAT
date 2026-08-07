@@ -27,6 +27,35 @@ LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "btlbagus")
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
 
+
+def _redact_pii(text: str) -> str:
+    text = re.sub(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "[EMAIL]", text)
+    text = re.sub(r"(?<!\d)(?:\+?62|0)8\d{8,13}(?!\d)", "[PHONE]", text)
+    return text
+
+
+def _validate_llm_result(result: dict) -> dict | None:
+    if not isinstance(result, dict):
+        return None
+    cat = str(result.get("category", "")).strip().lower()
+    if cat not in CATEGORIES:
+        cat = "lainnya"
+    try:
+        confidence = float(result.get("confidence", 0.5))
+    except (TypeError, ValueError):
+        return None
+    urgency = str(result.get("urgency", "medium")).strip().lower()
+    if urgency not in {"low", "medium", "high", "critical"}:
+        urgency = "medium"
+    return {
+        "category": cat,
+        "confidence": round(max(0.0, min(1.0, confidence)), 2),
+        "location": str(result.get("location", "")).strip()[:300],
+        "urgency": urgency,
+        "reasoning": str(result.get("reasoning", "")).strip()[:1000],
+        "model": LLM_MODEL,
+    }
+
 SYSTEM_PROMPT = """Kamu adalah AI classifier untuk SAMBAT, sistem pengaduan warga Banjarmasin.
 Tugasmu: klasifikasi laporan warga (bisa Bahasa Banjar atau campuran Banjar-Indonesia).
 
@@ -91,12 +120,17 @@ def _llm_classify(text: str) -> dict | None:
     """Klasifikasi via LLM. Return None kalau gagal/offline."""
     if not LLM_API_KEY:
         return None
+    from urllib.parse import urlparse
+    parsed = urlparse(LLM_BASE_URL)
+    if parsed.scheme != "https" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"}:
+        return None
+    safe_text = _redact_pii(text)
 
     body = json.dumps({
         "model": LLM_MODEL,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"Laporan warga:\n{text}\n\nJSON:"},
+            {"role": "user", "content": f"Laporan warga:\n{safe_text}\n\nJSON:"},
         ],
         "temperature": 0.2,
         "max_tokens": 500,
@@ -134,34 +168,20 @@ def _llm_classify(text: str) -> dict | None:
     if not result:
         return None
 
-    # Validasi kategori
-    cat = result.get("category", "").strip().lower()
-    if cat not in CATEGORIES:
-        cat = "lainnya"
-    confidence = float(result.get("confidence", 0.5))
-    confidence = max(0.0, min(1.0, confidence))
-
-    return {
-        "category": cat,
-        "confidence": round(confidence, 2),
-        "location": str(result.get("location", "")).strip(),
-        "urgency": str(result.get("urgency", "medium")).strip(),
-        "reasoning": str(result.get("reasoning", "")).strip(),
-        "model": LLM_MODEL,
-    }
+    return _validate_llm_result(result)
 
 
 # ─── Rule-based fallback ──────────────────────────────────────
 
 KEYWORDS: dict[str, list[str]] = {
     "sampah": [
-        "sampah", "tumpuk", "limbah", "kotor", "bau", "busuk", "buang", "berserakan",
+        "sampah", "tumpuk", "limbah", "kotor", "bau", "busuk", "berserakan",
         "menumpuk", "penuh", "barandah", "rampung", "sisa", "plastik", "botol",
         "sampah menumpuk", "tps", "tempat sampah", "dibuang",
     ],
     "drainase": [
         "drainase", "selokan", "parit", "mampet", "buntu", "tersumbat", "banyu",
-        "air", "banjir", "genangan", "naik", "turun", "rob", "pasang", "surut",
+        "banjir", "genangan", "rob", "air naik", "air meluap", "pasang air",
         "bah", "tanggul", "got", "saluran", "meluap", "kebanjiran", "kabanyakan",
         "tidak turun", "nggak turun",
     ],
@@ -184,7 +204,7 @@ def _rule_classify(text: str) -> dict:
     scores = {cat: 0 for cat in CATEGORIES}
     for cat, kws in KEYWORDS.items():
         for kw in kws:
-            if kw in t:
+            if re.search(r"(?<!\w)" + re.escape(kw.lower()) + r"(?!\w)", t):
                 scores[cat] += 1
 
     total = sum(scores.values())

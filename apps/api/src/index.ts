@@ -1,13 +1,28 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { getDb, migrate, newId } from "./db";
-
-const app = new Hono();
-app.use("*", cors());
+import { sql, migrate, audit, id, token, tokenHash } from "./db";
+import { PILOT_CONFIG, calculatePriority } from "./config";
+import { requireRoles } from "./auth";
 
 const AI_URL = process.env.AI_URL || "http://localhost:8000";
+const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
+const DINAS_BY_CATEGORY: Record<string, string> = {
+  sampah: "d-dlh", drainase: "d-pupr", jalan: "d-pupr", lampu: "d-dishub",
+};
+// Legal state machine — every transition below is explicit; anything else is rejected.
+const TRANSITIONS: Record<string, string[]> = {
+  terdeteksi: ["terverifikasi", "diteruskan", "ditolak"],
+  terverifikasi: ["diteruskan", "ditolak"],
+  diteruskan: ["dikerjakan", "ditolak"],
+  dikerjakan: ["menunggu_konfirmasi", "ditolak"],
+  menunggu_konfirmasi: ["selesai", "dikerjakan"],
+  selesai: [],
+  ditolak: [],
+};
+const URGENCY_UTILITY: Record<string, number> = { low: 25, medium: 50, high: 75, critical: 100 };
 
-// ─── helpers ────────────────────────────────────────────────
+const app = new Hono();
+app.use("*", cors({ origin: (process.env.CORS_ORIGIN || "*").split(",") }));
 
 async function aiClassify(text: string) {
   try {
@@ -15,306 +30,218 @@ async function aiClassify(text: string) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(60000),
     });
     if (!res.ok) return null;
     return await res.json();
   } catch {
-    return null; // AI down → laporan tetap masuk, kategori default 'lainnya'
+    return null; // AI unreachable → report still stored, flagged for operator review
   }
 }
 
-const PRIORITY_WEIGHTS = { U: 0.30, D: 0.25, V: 0.20, T: 0.15, R: 0.10 } as const;
-
-function computePriority(ai: any, reportCount: number, hoursOpen: number, hasLocation: boolean) {
-  // SMART weighted sum; each criterion is normalized to 0..100.
-  const urgencyValue: Record<string, number> = { low: 25, medium: 50, high: 75, critical: 100 };
-  const inputs = {
-    U: urgencyValue[ai?.urgency] ?? (ai?.confidence >= 0.8 ? 75 : 25),
-    D: Math.min(100, Math.max(0, reportCount * 25)),
+function priorityFor(ai: any, reportCount: number, hoursOpen: number, hasLocation: boolean) {
+  return calculatePriority({
+    U: URGENCY_UTILITY[ai?.urgency] ?? (ai?.confidence >= PILOT_CONFIG.reviewConfidence ? 75 : 25),
+    D: Math.min(100, reportCount * 25),
     V: (hasLocation ? 50 : 0) + (ai?.words_changed > 0 ? 50 : 0),
     T: Math.min(100, Math.floor(hoursOpen / 24) * 25),
-    R: 25, // default one-area impact; operator can update after geographic verification
-  };
-  const components = {
-    U: inputs.U * PRIORITY_WEIGHTS.U,
-    D: inputs.D * PRIORITY_WEIGHTS.D,
-    V: inputs.V * PRIORITY_WEIGHTS.V,
-    T: inputs.T * PRIORITY_WEIGHTS.T,
-    R: inputs.R * PRIORITY_WEIGHTS.R,
-  };
-  return {
-    score: Math.round(Object.values(components).reduce((sum, value) => sum + value, 0)),
-    inputs,
-    components,
-    method: "SMART (Edwards & Barron, 1994; DOI 10.1006/obhd.1994.1087)",
-  };
+    R: 25, // one-area default; recomputed from PostGIS once operator verifies affected area
+  });
 }
 
-// ─── routes ─────────────────────────────────────────────────
+const PUBLIC_FIELDS = ["id", "category", "location_text", "status", "priority", "dinas_id", "sla_due", "created_at"];
+const pickPublic = (row: any) => Object.fromEntries(PUBLIC_FIELDS.map((k) => [k, row[k]]));
 
+// ─── health ──────────────────────────────────────────────────
 app.get("/api/health", (c) => c.json({ ok: true, service: "api", uptime: process.uptime() }));
 
-// POST /api/reports — terima laporan dari collector / form
-app.post("/api/reports", async (c) => {
+// ─── intake (collector/operator only) ────────────────────────
+app.post("/api/reports", requireRoles("collector", "operator"), async (c) => {
   const body = await c.req.json().catch(() => null);
-  if (!body?.text) return c.json({ error: "text required" }, 400);
+  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  if (!text || text.length < 3) return c.json({ error: "text required (min 3 chars)" }, 400);
+  if (text.length > 5000) return c.json({ error: "text too long (max 5000)" }, 400);
+  const source = ["x", "instagram", "whatsapp", "web"].includes(body.source) ? body.source : "web";
+  const lat = Number(body.latitude), lng = Number(body.longitude);
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
 
-  const db = getDb();
-  const ai = await aiClassify(body.text);
+  const ai = await aiClassify(text);
+  const category = CATEGORIES.includes(ai?.category) ? ai.category : "lainnya";
+  const locationText = (ai?.location || body.locationText || null) as string | null;
 
-  const id = newId("rpt");
-  const created = new Date().toISOString();
-  const priority = computePriority(ai, 1, 0, Boolean(ai?.location || body.locationText));
-  const report = {
-    id,
-    source: body.source || "web",
-    source_ref: body.sourceRef || null,
-    text_original: body.text,
-    text_normalized: ai?.normalized || body.text,
-    category: ai?.category || "lainnya",
-    location_text: ai?.location || body.locationText || null,
-    confidence: ai?.confidence ?? null,
-    status: "terdeteksi",
-    priority: priority.score,
-    priority_detail: JSON.stringify(priority),
-    reporter_pseudo: body.reporterPseudo || null,
-    dinas_id: null,
-    sla_due: null,
-    created_at: created,
-  };
+  // Automatic dedup: fuzzy text (pg_trgm) within radius (PostGIS) and time window.
+  let duplicateCount = 1;
+  const similar = await sql`
+    SELECT id FROM reports
+    WHERE category = ${category}
+      AND status NOT IN ('selesai','ditolak')
+      AND created_at > now() - (${PILOT_CONFIG.dedupWindowDays} || ' days')::interval
+      AND similarity(text_normalized, ${ai?.normalized || text}) > ${PILOT_CONFIG.dedupSimilarity}
+      ${hasCoords ? sql`AND geom IS NOT NULL AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(${lng},${lat}),4326)::geography, ${PILOT_CONFIG.dedupRadiusMeters})` : sql``}
+  `;
+  duplicateCount = similar.length + 1;
 
-  db.query(
-    `INSERT INTO reports (id, source, source_ref, text_original, text_normalized, category, location_text, confidence, status, priority, priority_detail, reporter_pseudo, dinas_id, sla_due, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    report.id, report.source, report.source_ref, report.text_original, report.text_normalized,
-    report.category, report.location_text, report.confidence, report.status, report.priority,
-    report.priority_detail, report.reporter_pseudo, report.dinas_id, report.sla_due, report.created_at
-  );
+  const priority = priorityFor(ai, duplicateCount, 0, Boolean(locationText || hasCoords));
+  const rid = id("rpt");
+  const confirmation = token();
 
-  db.query(
-    `INSERT INTO sla_events (id, report_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(newId("sla"), id, "terdeteksi", "laporan diterima, menunggu verifikasi", "ai", created);
+  const [row] = await sql`
+    INSERT INTO reports ${sql({
+      id: rid, source, source_ref: body.sourceRef || null,
+      text_original: text, text_normalized: ai?.normalized || text,
+      category, location_text: locationText,
+      confidence: ai?.confidence ?? null, ai_model: ai?.model || null,
+      ai_reasoning: ai?.reasoning || null, ai_used: Boolean(ai?.llm_used),
+      status: "terdeteksi", priority: priority.score,
+      priority_detail: JSON.stringify(priority),
+      reporter_pseudo: body.reporterPseudo || null,
+      confirmation_token_hash: tokenHash(confirmation),
+    })}
+    RETURNING *
+  `;
+  if (hasCoords) {
+    await sql`UPDATE reports SET geom = ST_SetSRID(ST_MakePoint(${lng},${lat}),4326) WHERE id = ${rid}`;
+  }
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: rid, status: "terdeteksi", note: "laporan diterima", actor: "ai" })}`;
+  await audit("create", "report", rid, c.get("actor").name, { category, duplicateCount });
 
-  return c.json(report, 201);
+  // If similar reports exist, group them into a collective case automatically.
+  if (similar.length > 0) {
+    const ids = [rid, ...similar.map((s: any) => s.id)];
+    const caseScore = calculatePriority({ U: 50, D: Math.min(100, ids.length * 25), V: 50, T: 0, R: 50 });
+    await sql.begin(async (tx) => {
+      await tx`INSERT INTO cases ${tx({
+        id: id("case"), title: `Kasus ${category} — ${ids.length} laporan`,
+        report_ids: JSON.stringify(ids), report_count: ids.length,
+        score: caseScore.score, category, status: "terverifikasi",
+      })}`;
+      for (const reportId of ids) {
+        await tx`UPDATE reports SET status = 'terverifikasi', updated_at = now() WHERE id = ${reportId} AND status = 'terdeteksi'`;
+      }
+    });
+  }
+
+  return c.json({ ...row, confirmationToken: confirmation, priority_detail: priority }, 201);
 });
 
-// GET /api/reports — list dengan filter
-app.get("/api/reports", (c) => {
-  const db = getDb();
+// ─── list / detail (operator/dinas) ──────────────────────────
+app.get("/api/reports", requireRoles("operator", "dinas"), async (c) => {
   const category = c.req.query("category");
   const status = c.req.query("status");
-  const limit = Math.min(100, parseInt(c.req.query("limit") || "50"));
-
-  let sql = "SELECT * FROM reports";
-  const where: string[] = [];
-  const params: string[] = [];
-  if (category) { where.push("category = ?"); params.push(category); }
-  if (status) { where.push("status = ?"); params.push(status); }
-  if (where.length) sql += " WHERE " + where.join(" AND ");
-  sql += " ORDER BY created_at DESC LIMIT ?";
-  params.push(String(limit));
-
-  const rows = db.query(sql).all(...params);
+  const limitRaw = parseInt(c.req.query("limit") || "50");
+  if (!Number.isInteger(limitRaw) || limitRaw < 1 || limitRaw > 100) return c.json({ error: "limit must be 1..100" }, 400);
+  const rows = await sql`
+    SELECT * FROM reports
+    WHERE (${category ?? null}::text IS NULL OR category = ${category ?? null})
+      AND (${status ?? null}::text IS NULL OR status = ${status ?? null})
+    ORDER BY priority DESC, created_at DESC
+    LIMIT ${limitRaw}
+  `;
   return c.json(rows);
 });
 
-// GET /api/reports/:id — detail + timeline
-app.get("/api/reports/:id", (c) => {
-  const db = getDb();
-  const row = db.query("SELECT * FROM reports WHERE id = ?").get(c.req.param("id"));
+app.get("/api/reports/:id", requireRoles("operator", "dinas"), async (c) => {
+  const [row] = await sql`SELECT * FROM reports WHERE id = ${c.req.param("id")}`;
   if (!row) return c.json({ error: "not found" }, 404);
-  const timeline = db.query("SELECT * FROM sla_events WHERE report_id = ? ORDER BY created_at").all(c.req.param("id"));
+  const timeline = await sql`SELECT * FROM sla_events WHERE report_id = ${row.id} ORDER BY created_at`;
   return c.json({ ...row, timeline });
 });
 
-// POST /api/reports/:id/status — update status (operator/dinas)
-app.post("/api/reports/:id/status", async (c) => {
-  const db = getDb();
-  const id = c.req.param("id");
+// ─── status transition (operator/dinas) ──────────────────────
+app.post("/api/reports/:id/status", requireRoles("operator", "dinas"), async (c) => {
   const body = await c.req.json().catch(() => null);
-  const status = body?.status;
-  const valid = ["terdeteksi", "terverifikasi", "diteruskan", "dikerjakan", "menunggu_konfirmasi", "selesai", "ditolak"];
-  if (!valid.includes(status)) return c.json({ error: `invalid status, use one of: ${valid.join(", ")}` }, 400);
-
-  const now = new Date().toISOString();
-  db.query("UPDATE reports SET status = ? WHERE id = ?").run(status, id);
-  db.query(
-    `INSERT INTO sla_events (id, report_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(newId("sla"), id, status, body?.note || null, body?.actor || "operator", now);
-
-  return c.json({ id, status });
-});
-
-// POST /api/reports/:id/confirm — konfirmasi warga → SELESAI
-app.post("/api/reports/:id/confirm", (c) => {
-  const db = getDb();
-  const id = c.req.param("id");
-  const now = new Date().toISOString();
-  db.query("UPDATE reports SET status = 'selesai' WHERE id = ?").run(id);
-  db.query(
-    `INSERT INTO sla_events (id, report_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(newId("sla"), id, "selesai", "dikonfirmasi warga", "warga", now);
-  return c.json({ id, status: "selesai" });
-});
-
-// GET /api/cases — kasus kolektif
-app.get("/api/cases", (c) => {
-  const db = getDb();
-  return c.json(db.query("SELECT * FROM cases ORDER BY created_at DESC").all());
-});
-
-// POST /api/cases — buat kasus kolektif dari laporan serupa
-app.post("/api/cases", async (c) => {
-  const db = getDb();
-  const body = await c.req.json().catch(() => null);
-  if (!body?.reportIds?.length) return c.json({ error: "reportIds required" }, 400);
-
-  const id = newId("case");
-  const now = new Date().toISOString();
-  const reportIds = body.reportIds;
-  const count = reportIds.length;
-
-  // Ambil kategori dari laporan pertama
-  const first = db.query("SELECT category FROM reports WHERE id = ?").get(reportIds[0]);
-  const category = first?.category || "lainnya";
-
-  // Skor prioritas dari jumlah laporan
-  const detail = {
-    U: 25, // medium urgency default until operator/AI verifies safety risk
-    D: Math.min(100, count * 25),
-    V: 50, // grouped reports have verified textual evidence
-    T: 0,
-    R: 25,
-  };
-  const components = {
-    U: detail.U * PRIORITY_WEIGHTS.U,
-    D: detail.D * PRIORITY_WEIGHTS.D,
-    V: detail.V * PRIORITY_WEIGHTS.V,
-    T: detail.T * PRIORITY_WEIGHTS.T,
-    R: detail.R * PRIORITY_WEIGHTS.R,
-  };
-  const score = Math.round(Object.values(components).reduce((sum, value) => sum + value, 0));
-
-  const kasus = {
-    id,
-    title: body.title || `Kasus ${category} — ${count} laporan`,
-    report_ids: JSON.stringify(reportIds),
-    report_count: count,
-    score,
-    category,
-    status: "terverifikasi",
-    created_at: now,
-  };
-
-  db.query(
-    `INSERT INTO cases (id, title, report_ids, report_count, score, category, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(kasus.id, kasus.title, kasus.report_ids, kasus.report_count, kasus.score, kasus.category, kasus.status, kasus.created_at);
-
-  // Update semua laporan yang tergabung
-  for (const rid of reportIds) {
-    db.query("UPDATE reports SET status = 'terverifikasi' WHERE id = ?").run(rid);
+  const next = body?.status;
+  const [row] = await sql`SELECT status FROM reports WHERE id = ${c.req.param("id")}`;
+  if (!row) return c.json({ error: "not found" }, 404);
+  if (!TRANSITIONS[row.status]?.includes(next)) {
+    return c.json({ error: `illegal transition ${row.status} → ${next}`, allowed: TRANSITIONS[row.status] }, 409);
   }
-
-  return c.json(kasus, 201);
+  const who = c.get("actor").name;
+  await sql`UPDATE reports SET status = ${next}, updated_at = now() WHERE id = ${c.req.param("id")}`;
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: next, note: body?.note || null, actor: who })}`;
+  await audit("status", "report", c.req.param("id"), who, { from: row.status, to: next });
+  return c.json({ id: c.req.param("id"), status: next });
 });
 
-// GET /api/dashboard/public — statistik publik
-app.get("/api/dashboard/public", (c) => {
-  const db = getDb();
-  const total = db.query("SELECT count(*) as c FROM reports").get() as any;
-  const byCategory = db.query(
-    "SELECT category, count(*) as c FROM reports GROUP BY category ORDER BY c DESC"
-  ).all();
-  const byStatus = db.query(
-    "SELECT status, count(*) as c FROM reports GROUP BY status ORDER BY c DESC"
-  ).all();
-  const open = db.query("SELECT count(*) as c FROM reports WHERE status NOT IN ('selesai','ditolak')").get() as any;
-  return c.json({
-    total: total?.c || 0,
-    open: open?.c || 0,
-    byCategory,
-    byStatus,
-  });
+// ─── routing (operator only, dinas must exist) ───────────────
+app.post("/api/reports/:id/route", requireRoles("operator"), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const [report] = await sql`SELECT status FROM reports WHERE id = ${c.req.param("id")}`;
+  if (!report) return c.json({ error: "not found" }, 404);
+  const dinasId = body?.dinasId;
+  const [dinas] = await sql`SELECT id FROM dinas WHERE id = ${dinasId ?? null} AND active`;
+  if (!dinas) return c.json({ error: "unknown dinas" }, 404);
+  if (!["terdeteksi", "terverifikasi"].includes(report.status)) {
+    return c.json({ error: `cannot route from ${report.status}` }, 409);
+  }
+  const [{ category }] = await sql`SELECT category FROM reports WHERE id = ${c.req.param("id")}`;
+  const slaHours = PILOT_CONFIG.slaHours[category as keyof typeof PILOT_CONFIG.slaHours] ?? 72;
+  const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
+  await sql`UPDATE reports SET dinas_id = ${dinasId}, sla_due = ${slaDue}, status = 'diteruskan', updated_at = now() WHERE id = ${c.req.param("id")}`;
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `routed ke ${dinasId} (SLA ${slaHours}h)`, actor: c.get("actor").name })}`;
+  await audit("route", "report", c.req.param("id"), c.get("actor").name, { dinasId, slaHours });
+  return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
 });
 
-// GET /api/dashboard/operator — antrian review confidence < 0.8
-app.get("/api/dashboard/operator", (c) => {
-  const db = getDb();
-  const queue = db.query(
-    "SELECT * FROM reports WHERE confidence < 0.8 OR confidence IS NULL ORDER BY created_at DESC LIMIT 50"
-  ).all();
+// ─── auto-route by category (operator) — 'lainnya' stays in operator queue ─
+app.post("/api/reports/:id/auto-route", requireRoles("operator"), async (c) => {
+  const [report] = await sql`SELECT status, category FROM reports WHERE id = ${c.req.param("id")}`;
+  if (!report) return c.json({ error: "not found" }, 404);
+  const dinasId = DINAS_BY_CATEGORY[report.category];
+  if (!dinasId) return c.json({ error: "kategori 'lainnya' butuh routing manual operator" }, 409);
+  const slaHours = PILOT_CONFIG.slaHours[report.category as keyof typeof PILOT_CONFIG.slaHours];
+  const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
+  await sql`UPDATE reports SET dinas_id = ${dinasId}, sla_due = ${slaDue}, status = 'diteruskan', updated_at = now() WHERE id = ${c.req.param("id")}`;
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `auto-route ${report.category} → ${dinasId}`, actor: "ai" })}`;
+  await audit("auto-route", "report", c.req.param("id"), c.get("actor").name, { dinasId });
+  return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
+});
+
+// ─── citizen confirmation (ownership token, no role key) ──────
+app.post("/api/reports/:id/confirm", async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const supplied = typeof body?.token === "string" ? body.token : "";
+  const [row] = await sql`SELECT status, confirmation_token_hash FROM reports WHERE id = ${c.req.param("id")}`;
+  if (!row) return c.json({ error: "not found" }, 404);
+  if (!supplied || tokenHash(supplied) !== row.confirmation_token_hash) return c.json({ error: "invalid confirmation token" }, 403);
+  if (row.status !== "menunggu_konfirmasi") return c.json({ error: `belum siap dikonfirmasi (status ${row.status})` }, 409);
+  await sql`UPDATE reports SET status = 'selesai', updated_at = now() WHERE id = ${c.req.param("id")}`;
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "selesai", note: "dikonfirmasi warga", actor: "warga" })}`;
+  await audit("confirm", "report", c.req.param("id"), "warga", {});
+  return c.json({ id: c.req.param("id"), status: "selesai" });
+});
+
+// ─── cases (read-only; created automatically at intake) ──────
+app.get("/api/cases", requireRoles("operator", "dinas"), async (c) => {
+  return c.json(await sql`SELECT * FROM cases ORDER BY score DESC, created_at DESC`);
+});
+
+// ─── audit trail (operator) ──────────────────────────────────
+app.get("/api/audit", requireRoles("operator"), async (c) => {
+  return c.json(await sql`SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 200`);
+});
+
+// ─── dashboards ──────────────────────────────────────────────
+app.get("/api/dashboard/public", async (c) => {
+  const [{ total }] = await sql`SELECT count(*)::int AS total FROM reports`;
+  const [{ open }] = await sql`SELECT count(*)::int AS open FROM reports WHERE status NOT IN ('selesai','ditolak')`;
+  const byCategory = await sql`SELECT category, count(*)::int AS c FROM reports GROUP BY category ORDER BY c DESC`;
+  const byStatus = await sql`SELECT status, count(*)::int AS c FROM reports GROUP BY status ORDER BY c DESC`;
+  const recent = await sql`SELECT * FROM reports ORDER BY created_at DESC LIMIT 20`;
+  return c.json({ total, open, byCategory, byStatus, recent: recent.map(pickPublic) });
+});
+
+app.get("/api/dashboard/operator", requireRoles("operator"), async (c) => {
+  const queue = await sql`
+    SELECT * FROM reports
+    WHERE confidence IS NULL OR confidence < ${PILOT_CONFIG.reviewConfidence}
+    ORDER BY priority DESC, created_at DESC LIMIT 50
+  `;
   return c.json(queue);
 });
 
-// GET /api/dinas — list dinas
-app.get("/api/dinas", (c) => {
-  const db = getDb();
-  const rows = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='dinas'").get();
-  if (!rows) {
-    // seed dinas ke sqlite
-    db.query("CREATE TABLE IF NOT EXISTS dinas (id TEXT PRIMARY KEY, name TEXT NOT NULL, short TEXT NOT NULL UNIQUE)").run();
-    const dinas = [
-      ["d-pupr", "Dinas Pekerjaan Umum dan Penataan Ruang", "PUPR"],
-      ["d-dlh", "Dinas Lingkungan Hidup", "DLH"],
-      ["d-dishub", "Dinas Perhubungan", "DISHUB"],
-      ["d-bpbd", "Badan Penanggulangan Bencana Daerah", "BPBD"],
-    ];
-    for (const [id, name, short] of dinas) {
-      db.query("INSERT OR IGNORE INTO dinas (id, name, short) VALUES (?, ?, ?)").run(id, name, short);
-    }
-  }
-  return c.json(db.query("SELECT * FROM dinas").all());
-});
+app.get("/api/dinas", async (c) => c.json(await sql`SELECT id, name, short FROM dinas WHERE active ORDER BY short`));
 
-// POST /api/reports/:id/route — routing ke dinas
-app.post("/api/reports/:id/route", async (c) => {
-  const db = getDb();
-  const id = c.req.param("id");
-  const body = await c.req.json().catch(() => null);
-  const dinasId = body?.dinasId;
-  if (!dinasId) return c.json({ error: "dinasId required" }, 400);
-
-  const now = new Date().toISOString();
-  const slaDue = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString(); // SLA 3 hari
-
-  db.query("UPDATE reports SET dinas_id = ?, sla_due = ?, status = 'diteruskan' WHERE id = ?").run(dinasId, slaDue, id);
-  db.query(
-    `INSERT INTO sla_events (id, report_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(newId("sla"), id, "diteruskan", `dirouting ke ${dinasId}`, "operator", now);
-
-  return c.json({ id, dinasId, slaDue, status: "diteruskan" });
-});
-
-// POST /api/reports/:id/auto-route — routing otomatis berdasarkan kategori
-app.post("/api/reports/:id/auto-route", (c) => {
-  const db = getDb();
-  const id = c.req.param("id");
-  const row = db.query("SELECT category FROM reports WHERE id = ?").get(id) as any;
-  if (!row) return c.json({ error: "not found" }, 404);
-
-  const map: Record<string, string> = {
-    sampah: "d-dlh",
-    drainase: "d-pupr",
-    jalan: "d-pupr",
-    lampu: "d-dishub",
-    lainnya: "d-pupr",
-  };
-  const dinasId = map[row.category] || "d-pupr";
-
-  const now = new Date().toISOString();
-  const slaDue = new Date(Date.now() + 3 * 24 * 3600 * 1000).toISOString();
-  db.query("UPDATE reports SET dinas_id = ?, sla_due = ?, status = 'diteruskan' WHERE id = ?").run(dinasId, slaDue, id);
-  db.query(
-    `INSERT INTO sla_events (id, report_id, status, note, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(newId("sla"), id, "diteruskan", `auto-routing: ${row.category} → ${dinasId}`, "ai", now);
-
-  return c.json({ id, dinasId, slaDue, status: "diteruskan" });
-});
-
-const server = Bun.serve({
-  port: Number(process.env.PORT || 3001),
-  fetch: app.fetch,
-});
+await migrate();
+const server = Bun.serve({ port: Number(process.env.PORT || 3001), fetch: app.fetch });
 console.log(`SAMBAT API listening on :${server.port}`);
