@@ -1,26 +1,11 @@
 import type { Context, Next } from "hono";
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, createHash } from "node:crypto";
+import { sql } from "./db";
 
 export type Role = "collector" | "operator" | "dinas";
+export type NamedIdentity = { role: Role; name: string; keyId: string };
 
-export type NamedIdentity = {
-  role: Role;
-  name: string;
-};
-
-export type KeyEntry = { name: string; hash: string };
-
-// Keys come from environment. Production can swap this for a DB-backed identity map.
-const envKeys: Record<Role, KeyEntry | null> = {
-  collector: envKey(process.env.COLLECTOR_API_KEY),
-  operator: envKey(process.env.OPERATOR_API_KEY),
-  dinas: envKey(process.env.DINAS_API_KEY),
-};
-
-function envKey(raw: string | undefined) {
-  if (!raw) return null;
-  return { name: "operator", hash: raw };
-}
+export const keyHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
 function equal(a: string, b: string) {
   const left = Buffer.from(a);
@@ -28,20 +13,28 @@ function equal(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function actor(c: Context): NamedIdentity | null {
+export async function authenticate(c: Context): Promise<NamedIdentity | null> {
   const supplied = c.req.header("x-api-key") || c.req.header("authorization")?.replace(/^Bearer\s+/i, "") || "";
   if (!supplied) return null;
-  for (const [role, entry] of Object.entries(envKeys) as [Role, KeyEntry | null][]) {
-    if (entry && equal(supplied, entry.hash)) {
-      return { role, name: entry.name };
-    }
-  }
-  return null;
+  const hash = keyHash(supplied);
+  const rows = await sql`
+    SELECT id, role, name, key_hash FROM api_keys
+    WHERE key_hash = ${hash} AND revoked_at IS NULL
+      AND (expires_at IS NULL OR expires_at > now())
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (!row || !equal(hash, row.key_hash)) return null;
+  return { role: row.role as Role, name: row.name, keyId: row.id };
+}
+
+export function actor(c: Context): NamedIdentity | null {
+  return c.get("actor") || null;
 }
 
 export function requireRoles(...roles: Role[]) {
   return async (c: Context, next: Next) => {
-    const identity = actor(c);
+    const identity = await authenticate(c);
     if (!identity) return c.json({ error: "unauthorized" }, 401);
     if (!roles.includes(identity.role)) return c.json({ error: "forbidden" }, 403);
     c.set("actor", identity);

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { sql, migrate, audit, id, tokenHash } from "./db";
+import { sql, migrate, audit, id, tokenHash, token } from "./db";
 import { PILOT_CONFIG, calculatePriority } from "./config";
-import { requireRoles, actor } from "./auth";
+import { requireRoles, actor, keyHash } from "./auth";
 import { rateLimitMiddleware } from "./rate-limit";
 import { intake } from "./intake";
 import { inCityBounds } from "./geo";
@@ -182,6 +182,39 @@ app.get("/api/cases", requireRoles("operator", "dinas"), async (c) => {
 // ─── audit trail ────────────────────────────────────────────
 app.get("/api/audit", requireRoles("operator"), async (c) => {
   return c.json(await sql`SELECT * FROM audit_log ORDER BY created_at DESC LIMIT 200`);
+});
+
+// ─── API key management (operator only; raw key shown once) ──
+app.post("/api/auth/keys", requireRoles("operator"), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const role = body?.role;
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  const ttlDays = Number(body?.ttlDays ?? 90);
+  if (!["collector", "operator", "dinas"].includes(role) || !name || !Number.isInteger(ttlDays) || ttlDays < 1 || ttlDays > 3650) {
+    return c.json({ error: "role, name, ttlDays(1..3650) required" }, 400);
+  }
+  const raw = token();
+  const keyId = id("key");
+  const expires = new Date(Date.now() + ttlDays * 86400000).toISOString();
+  const who = actor(c)?.name || "operator";
+  await sql`
+    INSERT INTO api_keys (id, role, name, key_hash, expires_at, created_by)
+    VALUES (${keyId}, ${role}, ${name}, ${keyHash(raw)}, ${expires}, ${who})
+  `;
+  await audit("key_created", "api_key", keyId, who, { role, name, expires });
+  return c.json({ id: keyId, role, name, expiresAt: expires, apiKey: raw }, 201);
+});
+
+app.get("/api/auth/keys", requireRoles("operator"), async (c) => {
+  return c.json(await sql`SELECT id, role, name, expires_at, revoked_at, created_at, created_by FROM api_keys ORDER BY created_at DESC`);
+});
+
+app.post("/api/auth/keys/:id/revoke", requireRoles("operator"), async (c) => {
+  const who = actor(c)?.name || "operator";
+  const result = await sql`UPDATE api_keys SET revoked_at = now() WHERE id = ${c.req.param("id")} AND revoked_at IS NULL RETURNING id`;
+  if (!result.length) return c.json({ error: "key not found or already revoked" }, 404);
+  await audit("key_revoked", "api_key", c.req.param("id"), who);
+  return c.json({ id: c.req.param("id"), revoked: true });
 });
 
 // ─── collector webhook intake (collector only) ──────────────

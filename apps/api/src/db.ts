@@ -20,6 +20,19 @@ export async function migrate() {
       active BOOLEAN NOT NULL DEFAULT TRUE
     );
 
+    CREATE TABLE IF NOT EXISTS api_keys (
+      id TEXT PRIMARY KEY,
+      role TEXT NOT NULL CHECK (role IN ('collector','operator','dinas')),
+      name TEXT NOT NULL,
+      key_hash TEXT NOT NULL UNIQUE,
+      expires_at TIMESTAMPTZ,
+      revoked_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      created_by TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_keys_active ON api_keys(role, revoked_at, expires_at);
+
     CREATE TABLE IF NOT EXISTS reports (
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL CHECK (source IN ('x','instagram','whatsapp','web')),
@@ -144,7 +157,6 @@ export async function migrate() {
     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, short=EXCLUDED.short
   `;
 
-  // Seed flood urgency from official BPBD layer (Urgensi_Banjir_CRIC_2023) — sampled kelurahan.
   await sql`
     INSERT INTO geo_flood (kelurahan, flood_urgency, potensi, kerentanan, keterpapar, resiko_iklim) VALUES
       ('Basirih', 7, 7, 7, 5, 6),
@@ -152,6 +164,19 @@ export async function migrate() {
       ('Mantuil', 3, 2, 6, 1, 3)
     ON CONFLICT (kelurahan) DO NOTHING
   `;
+
+  for (const [role, raw] of Object.entries({
+    collector: process.env.COLLECTOR_API_KEY,
+    operator: process.env.OPERATOR_API_KEY,
+    dinas: process.env.DINAS_API_KEY,
+  })) {
+    if (!raw) continue;
+    await sql`
+      INSERT INTO api_keys (id, role, name, key_hash, created_by)
+      VALUES (${`env-${role}`}, ${role}, ${`${role}-env`}, ${tokenHash(raw)}, 'bootstrap')
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
 }
 
 export async function audit(action: string, entityType: string, entityId: string, actor: string, detail: unknown = {}) {
