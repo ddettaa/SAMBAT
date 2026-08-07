@@ -58,7 +58,7 @@ app.post("/api/reports", async (c) => {
     text_original: body.text,
     text_normalized: ai?.normalized || body.text,
     category: ai?.category || "lainnya",
-    location_text: body.locationText || null,
+    location_text: ai?.location || body.locationText || null,
     confidence: ai?.confidence ?? null,
     status: "terdeteksi",
     priority: 0,

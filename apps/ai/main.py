@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from normalizer import normalize
 from classifier import classify
 
-app = FastAPI(title="SAMBAT AI Service", version="0.2.0")
+app = FastAPI(title="SAMBAT AI Service", version="0.3.0")
 
 
 class NormalizeRequest(BaseModel):
@@ -24,14 +24,19 @@ class ClassifyRequest(BaseModel):
 class ClassifyResponse(BaseModel):
     category: str
     confidence: float
-    scores: dict[str, int]
+    scores: dict[str, int] = {}
     normalized: str
     words_changed: int
+    location: str = ""
+    urgency: str = "low"
+    reasoning: str = ""
+    model: str = ""
+    llm_used: bool = False
 
 
 @app.get("/health")
 def health():
-    return {"ok": True, "service": "ai", "version": "0.2.0"}
+    return {"ok": True, "service": "ai", "version": "0.3.0"}
 
 
 @app.post("/normalize", response_model=NormalizeResponse)
@@ -46,4 +51,12 @@ def normalize_text(req: NormalizeRequest):
 
 @app.post("/classify", response_model=ClassifyResponse)
 def classify_text(req: ClassifyRequest):
-    return classify(req.text)
+    result = classify(req.text)
+    # isi field dengan default supaya response model cocok
+    result.setdefault("scores", {})
+    result.setdefault("location", "")
+    result.setdefault("urgency", "low")
+    result.setdefault("reasoning", "")
+    result.setdefault("model", "")
+    result.setdefault("llm_used", False)
+    return result

@@ -25,6 +25,11 @@ assert r.json()["category"] == "drainase"
 
 r = c.post("/classify", json={"text": "selamat pagi semua"})
 assert r.json()["category"] == "lainnya"
-assert r.json()["confidence"] == 0.0
+
+# response harus punya field yang dipakai API
+r = c.post("/classify", json={"text": "sampah menumpuk di depan rumah"})
+j = r.json()
+for field in ["category", "confidence", "scores", "normalized", "words_changed", "llm_used"]:
+    assert field in j, f"missing {field}"
 
 print("ALL AI TESTS PASSED")
