@@ -39,7 +39,7 @@ from normalizer import normalize
 CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"]
 
 # ─── LLM config ──────────────────────────────────────────────
-LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "http://72.61.142.52:20128/v1")
+LLM_BASE_URL = os.environ.get("LLM_BASE_URL", "").rstrip("/")
 LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "btlbagus")
 LLM_TIMEOUT = float(os.environ.get("LLM_TIMEOUT", "45"))
@@ -136,7 +136,7 @@ def _extract_json(text: str) -> dict | None:
 
 def _llm_classify(text: str) -> dict | None:
     """Klasifikasi via LLM. Return None kalau gagal/offline."""
-    if not LLM_API_KEY:
+    if not LLM_API_KEY or not LLM_BASE_URL:
         return None
     from urllib.parse import urlparse
     parsed = urlparse(LLM_BASE_URL)
