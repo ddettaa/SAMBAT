@@ -3,11 +3,24 @@ import { timingSafeEqual } from "node:crypto";
 
 export type Role = "collector" | "operator" | "dinas";
 
-const keys: Record<Role, string> = {
-  collector: process.env.COLLECTOR_API_KEY || "",
-  operator: process.env.OPERATOR_API_KEY || "",
-  dinas: process.env.DINAS_API_KEY || "",
+export type NamedIdentity = {
+  role: Role;
+  name: string;
 };
+
+export type KeyEntry = { name: string; hash: string };
+
+// Keys come from environment. Production can swap this for a DB-backed identity map.
+const envKeys: Record<Role, KeyEntry | null> = {
+  collector: envKey(process.env.COLLECTOR_API_KEY),
+  operator: envKey(process.env.OPERATOR_API_KEY),
+  dinas: envKey(process.env.DINAS_API_KEY),
+};
+
+function envKey(raw: string | undefined) {
+  if (!raw) return null;
+  return { name: "operator", hash: raw };
+}
 
 function equal(a: string, b: string) {
   const left = Buffer.from(a);
@@ -15,11 +28,13 @@ function equal(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function actor(c: Context): { role: Role; name: string } | null {
+export function actor(c: Context): NamedIdentity | null {
   const supplied = c.req.header("x-api-key") || c.req.header("authorization")?.replace(/^Bearer\s+/i, "") || "";
   if (!supplied) return null;
-  for (const [role, expected] of Object.entries(keys) as [Role, string][]) {
-    if (expected && equal(supplied, expected)) return { role, name: role };
+  for (const [role, entry] of Object.entries(envKeys) as [Role, KeyEntry | null][]) {
+    if (entry && equal(supplied, entry.hash)) {
+      return { role, name: entry.name };
+    }
   }
   return null;
 }

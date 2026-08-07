@@ -1,5 +1,6 @@
 import type { SQL } from "bun";
 import { audit, id } from "./db";
+import { collectNotifications, deliver } from "./notify";
 
 export async function processSla(db: SQL) {
   let reminders = 0;
@@ -30,12 +31,28 @@ export async function processSla(db: SQL) {
     });
     escalations++;
   }
-  return { reminders, escalations };
+
+  // Deliver SLA notifications (dashboard/webhook) — idempotent via notifications table.
+  let delivered = 0;
+  for (const notification of await collectNotifications()) {
+    if (await deliver(notification)) delivered++;
+  }
+
+  return { reminders, escalations, delivered };
 }
 
 if (import.meta.main) {
   const { sql, migrate } = await import("./db");
   await migrate();
-  console.log(JSON.stringify(await processSla(sql)));
+  const { syncFloodFromGeoportal } = await import("./geo");
+  let floodSync: any = { skipped: true };
+  if (process.env.GEOPORTAL_SYNC === "1") {
+    try {
+      floodSync = await syncFloodFromGeoportal();
+    } catch (error: any) {
+      floodSync = { ok: false, error: String(error?.message || error) };
+    }
+  }
+  console.log(JSON.stringify({ sla: await processSla(sql), floodSync }));
   await sql.close();
 }

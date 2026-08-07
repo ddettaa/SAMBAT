@@ -14,14 +14,23 @@ async function request(path: string, init: RequestInit = {}, key?: string) {
 }
 const post = (path: string, body: any, key?: string) => request(path, { method: "POST", body: JSON.stringify(body) }, key);
 const assert = (condition: any, message: string) => { if (!condition) throw new Error(message); };
+let r: any;
 
 // Internal report data must not be public.
-let r = await request("/api/reports");
+r = await request("/api/reports");
 assert(r.status === 401, `reports without auth: ${r.status}`);
 
 // Intake requires collector/operator authentication.
 r = await post("/api/reports", { text: "Jalan berlubang di Jalan Veteran", source: "web", locationText: "Jalan Veteran", latitude: -3.32, longitude: 114.59 });
 assert(r.status === 401, `create without auth: ${r.status}`);
+
+// Geoportal integration: official city bounds are respected for coordinate validation.
+r = await post("/api/reports", { text: "lampu mati", source: "web", latitude: 999, longitude: 999 }, COLLECTOR);
+assert(r.status === 400, `coords out of range: ${r.status}`);
+r = await post("/api/reports", { text: "lampu mati", source: "web", latitude: -3.32, longitude: 114.59 }, COLLECTOR);
+assert(r.status === 201, `in-city coords accepted: ${r.status}`);
+r = await post("/api/reports", { text: "lampu mati", source: "web", latitude: -6.2, longitude: 106.8, sourceRef: "jakarta-1" }, COLLECTOR);
+assert(r.status === 201 && r.body.kelurahan === null && r.body.kecamatan === null, "outside city should have null admin");
 
 r = await post("/api/reports", { text: "Jalan berlubang di Jalan Veteran", source: "web", locationText: "Jalan Veteran", latitude: -3.32, longitude: 114.59 }, COLLECTOR);
 assert(r.status === 201, `create: ${r.status} ${JSON.stringify(r.body)}`);
@@ -48,6 +57,13 @@ r = await post("/api/reports", { text: "x".repeat(5001), source: "web" }, COLLEC
 assert(r.status === 400 || r.status === 413, `oversized text: ${r.status}`);
 r = await request("/api/reports?limit=-1", {}, OPERATOR);
 assert(r.status === 400, `negative limit: ${r.status}`);
+r = await post("/api/reports", { text: "sampah menumpuk di sungai", source: "web", sourceRef: "dup-1" }, COLLECTOR);
+assert(r.status === 201, `idempotent first: ${r.status}`);
+const dupFirst = r.body;
+r = await post("/api/reports", { text: "sampah menumpuk di sungai", source: "web", sourceRef: "dup-1" }, COLLECTOR);
+assert(r.status === 201 && r.body.id === dupFirst.id, `idempotent duplicate should return same report`);
+r = await request("/api/ready");
+assert(r.status === 200 || r.status === 503, `ready endpoint: ${r.status}`);
 
 // Valid workflow.
 r = await post(`/api/reports/${report.id}/route`, { dinasId: "d-pupr" }, OPERATOR);
@@ -71,5 +87,14 @@ assert(r.body.some((c: any) => c.report_count >= 2), "automatic dedup case missi
 // Audit trail must contain mutations.
 r = await request("/api/audit", {}, OPERATOR);
 assert(r.status === 200 && r.body.length >= 5, "audit trail missing");
+
+// Rate limiting helper is deterministic and blocks after its ceiling.
+{
+  const { rateLimit } = await import("./src/rate-limit");
+  const key = `self-test-${Date.now()}`;
+  assert(rateLimit(key, 2, 60_000), "rate limit first request");
+  assert(rateLimit(key, 2, 60_000), "rate limit second request");
+  assert(!rateLimit(key, 2, 60_000), "rate limit did not trigger");
+}
 
 console.log("ALL SECURE POSTGRES E2E TESTS PASSED");

@@ -24,6 +24,7 @@ export async function migrate() {
       id TEXT PRIMARY KEY,
       source TEXT NOT NULL CHECK (source IN ('x','instagram','whatsapp','web')),
       source_ref TEXT,
+      UNIQUE (source, source_ref),
       text_original TEXT NOT NULL CHECK (char_length(text_original) BETWEEN 3 AND 5000),
       text_normalized TEXT,
       category TEXT NOT NULL CHECK (category IN ('sampah','drainase','jalan','lampu','lainnya')),
@@ -38,6 +39,12 @@ export async function migrate() {
       priority_detail JSONB NOT NULL,
       reporter_pseudo TEXT,
       confirmation_token_hash TEXT NOT NULL,
+      confirmation_expires_at TIMESTAMPTZ,
+      confirmation_attempts INTEGER NOT NULL DEFAULT 0,
+      ai_failure_reason TEXT,
+      kelurahan TEXT,
+      kecamatan TEXT,
+      flood_urgency INTEGER,
       dinas_id TEXT REFERENCES dinas(id),
       sla_due TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -66,6 +73,51 @@ export async function migrate() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
 
+    CREATE TABLE IF NOT EXISTS geo_admin (
+      name TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      parent TEXT,
+      geom GEOMETRY(MultiPolygon,4326) NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_geo_admin_geom ON geo_admin USING GIST(geom);
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id TEXT PRIMARY KEY,
+      report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+      channel TEXT NOT NULL,
+      recipient TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS collector_inbox (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      source_ref TEXT,
+      UNIQUE (source, source_ref),
+      text TEXT NOT NULL CHECK (char_length(text) BETWEEN 3 AND 5000),
+      location_text TEXT,
+      latitude DOUBLE PRECISION,
+      longitude DOUBLE PRECISION,
+      reporter_pseudo TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','ingested','failed')),
+      error TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE TABLE IF NOT EXISTS geo_flood (
+      kelurahan TEXT PRIMARY KEY,
+      flood_urgency INTEGER NOT NULL,
+      potensi INTEGER,
+      kerentanan INTEGER,
+      keterpapar INTEGER,
+      resiko_iklim INTEGER,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
     CREATE TABLE IF NOT EXISTS audit_log (
       id TEXT PRIMARY KEY,
       action TEXT NOT NULL,
@@ -90,6 +142,15 @@ export async function migrate() {
       ('d-dishub','Dinas Perhubungan','DISHUB'),
       ('d-bpbd','Badan Penanggulangan Bencana Daerah','BPBD')
     ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, short=EXCLUDED.short
+  `;
+
+  // Seed flood urgency from official BPBD layer (Urgensi_Banjir_CRIC_2023) — sampled kelurahan.
+  await sql`
+    INSERT INTO geo_flood (kelurahan, flood_urgency, potensi, kerentanan, keterpapar, resiko_iklim) VALUES
+      ('Basirih', 7, 7, 7, 5, 6),
+      ('Belitung Selatan', 4, 4, 5, 3, 4),
+      ('Mantuil', 3, 2, 6, 1, 3)
+    ON CONFLICT (kelurahan) DO NOTHING
   `;
 }
 

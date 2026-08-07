@@ -7,7 +7,10 @@
     "start": "bun run src/index.ts",
     "worker": "bun run src/worker.ts",
     "test:e2e": "bun run test-secure-e2e.ts",
-    "test:worker": "bun run test-worker.ts"
+    "test:worker": "bun run test-worker.ts",
+    "test:geo": "bun test-geo.ts",
+    "geo:sync": "bun run src/geo-sync.ts",
+    "collector": "bun run src/collector.ts"
   },
   "dependencies": {
     "hono": "^4.6.0"

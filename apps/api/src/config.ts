@@ -3,6 +3,11 @@ export const PILOT_CONFIG = {
   dedupSimilarity: Number(process.env.DEDUP_SIMILARITY || 0.45),
   dedupRadiusMeters: Number(process.env.DEDUP_RADIUS_METERS || 500),
   dedupWindowDays: Number(process.env.DEDUP_WINDOW_DAYS || 7),
+  confirmationTtlHours: Number(process.env.CONFIRMATION_TTL_HOURS || 168),
+  confirmationMaxAttempts: Number(process.env.CONFIRMATION_MAX_ATTEMPTS || 5),
+  rateLimitMax: Number(process.env.RATE_LIMIT_MAX || 60),
+  rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
+  geoportalBaseUrl: process.env.GEOPORTAL_BASE_URL || "https://geoportal.banjarmasinkota.go.id",
   slaHours: {
     sampah: Number(process.env.SLA_SAMPAH_HOURS || 72),
     drainase: Number(process.env.SLA_DRAINASE_HOURS || 24),
