@@ -6,6 +6,8 @@ sudo install -m 0644 "$ROOT/deploy/systemd/sambat-ai.service" /etc/systemd/syste
 sudo install -m 0644 "$ROOT/deploy/systemd/sambat-api.service" /etc/systemd/system/
 sudo install -m 0644 "$ROOT/deploy/systemd/sambat-worker.service" /etc/systemd/system/
 sudo install -m 0644 "$ROOT/deploy/systemd/sambat-worker.timer" /etc/systemd/system/
+sudo install -m 0644 "$ROOT/deploy/systemd/sambat-collector.service" /etc/systemd/system/
+sudo install -m 0644 "$ROOT/deploy/systemd/sambat-collector.timer" /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now sambat-ai.service sambat-api.service sambat-worker.timer
-sudo systemctl --no-pager --full status sambat-ai.service sambat-api.service sambat-worker.timer
+sudo systemctl enable --now sambat-ai.service sambat-api.service sambat-worker.timer sambat-collector.timer
+sudo systemctl --no-pager --full status sambat-ai.service sambat-api.service sambat-worker.timer sambat-collector.timer

@@ -18,6 +18,10 @@ sambat/
 │   │   │   ├── config.ts    # SMART priority + pilot config
 │   │   │   └── worker.ts    # SLA reminder + escalation
 │   │   └── .env             # API keys, DATABASE_URL, SLA config
+│   ├── collector/    # Playwright — X & Instagram mention collector
+│   │   ├── playwright_collector.py
+│   │   ├── .env             # akun SAMBAT_BJM, session dir (ignored by Git)
+│   │   └── .env.example
 │   └── ai/           # FastAPI — normalizer Banjar, LLM classifier
 │       ├── classifier.py    # LLM-first (9Router), rule-based fallback
 │       ├── normalizer.py    # 3.078 entri kamus Banjar
@@ -58,6 +62,13 @@ cp .env.example .env   # isi API keys, DATABASE_URL
 
 # 4. Deploy via systemd
 cd ../.. && sudo bash deploy/install-systemd.sh
+
+# 5. Social collector (X & Instagram)
+cd apps/collector && pip install -r requirements.txt
+cp .env.example .env    # isi username/password akun SAMBAT_BJM
+python3 playwright_collector.py --login x          # headful sekali; selesaikan OTP/CAPTCHA
+python3 playwright_collector.py --login instagram # headful sekali; selesaikan OTP/CAPTCHA
+# session tersimpan di PLAYWRIGHT_SESSION_DIR; polling otomatis tiap 5 menit via systemd timer
 ```
 
 ## Dokumentasi

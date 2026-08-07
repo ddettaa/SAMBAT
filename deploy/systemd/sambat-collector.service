@@ -1,0 +1,12 @@
+[Unit]
+Description=SAMBAT X and Instagram Playwright collector
+After=network-online.target sambat-api.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/sambat-repo/apps/collector
+EnvironmentFile=/root/sambat-repo/apps/api/.env
+EnvironmentFile=-/root/sambat-repo/apps/collector/.env
+ExecStart=/usr/bin/python3 /root/sambat-repo/apps/collector/playwright_collector.py --once
