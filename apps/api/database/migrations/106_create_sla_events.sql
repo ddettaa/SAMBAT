@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS sla_events (
+  id TEXT PRIMARY KEY,
+  report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+  status TEXT NOT NULL,
+  note TEXT,
+  actor TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

@@ -14,7 +14,7 @@ async function main() {
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`);
   for (const file of await files(join(root, "migrations"))) {
-    const version = file.split("_", 1)[0];
+    const version = file.replace(/\.sql$/, "");
     const [seen] = await sql`SELECT version FROM schema_migrations WHERE version = ${version}`;
     if (seen) continue;
     await sql.begin(async (tx) => {
