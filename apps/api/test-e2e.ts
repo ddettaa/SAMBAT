@@ -21,7 +21,10 @@ assert(health.ok, "health");
 const r1 = await post("/api/reports", { text: "lampu jalan di muka rumah ulun mati sudah tiga malam", source: "instagram" });
 assert(r1.category === "lampu", `category=${r1.category}`);
 assert(r1.text_normalized.includes("depan rumah saya"), r1.text_normalized);
-console.log("✓ create + classify:", r1.category, r1.confidence);
+assert(r1.priority > 0 && r1.priority <= 100, `priority=${r1.priority}`);
+const priorityDetail = JSON.parse(r1.priority_detail);
+assert(priorityDetail.method.startsWith("SMART"), priorityDetail.method);
+console.log("✓ create + classify:", r1.category, r1.confidence, "priority:", r1.priority);
 
 // 3. auto-route
 const rr = await post(`/api/reports/${r1.id}/auto-route`);

@@ -23,18 +23,31 @@ async function aiClassify(text: string) {
   }
 }
 
-const PRIORITY = { U: 30, D: 25, V: 20, T: 15, R: 10 };
+const PRIORITY_WEIGHTS = { U: 0.30, D: 0.25, V: 0.20, T: 0.15, R: 0.10 } as const;
 
-function computePriority(ai: any, reportCount: number, hoursOpen: number): { score: number; detail: Record<string, number> } {
-  const detail = {
-    U: ai?.confidence && ai.confidence >= 0.8 ? 30 : 15, // urgensi dari confidence
-    D: reportCount > 1 ? Math.min(25, 10 + reportCount * 5) : 0,
-    V: ai?.words_changed && ai.words_changed > 0 ? 20 : 10, // bukti: ada normalisasi/lokasi
-    T: Math.min(15, Math.floor(hoursOpen / 24) * 5),
-    R: 10, // default dampak, diisi manual oleh operator
+function computePriority(ai: any, reportCount: number, hoursOpen: number, hasLocation: boolean) {
+  // SMART weighted sum; each criterion is normalized to 0..100.
+  const urgencyValue: Record<string, number> = { low: 25, medium: 50, high: 75, critical: 100 };
+  const inputs = {
+    U: urgencyValue[ai?.urgency] ?? (ai?.confidence >= 0.8 ? 75 : 25),
+    D: Math.min(100, Math.max(0, reportCount * 25)),
+    V: (hasLocation ? 50 : 0) + (ai?.words_changed > 0 ? 50 : 0),
+    T: Math.min(100, Math.floor(hoursOpen / 24) * 25),
+    R: 25, // default one-area impact; operator can update after geographic verification
   };
-  const score = detail.U + detail.D + detail.V + detail.T + detail.R;
-  return { score, detail };
+  const components = {
+    U: inputs.U * PRIORITY_WEIGHTS.U,
+    D: inputs.D * PRIORITY_WEIGHTS.D,
+    V: inputs.V * PRIORITY_WEIGHTS.V,
+    T: inputs.T * PRIORITY_WEIGHTS.T,
+    R: inputs.R * PRIORITY_WEIGHTS.R,
+  };
+  return {
+    score: Math.round(Object.values(components).reduce((sum, value) => sum + value, 0)),
+    inputs,
+    components,
+    method: "SMART (Edwards & Barron, 1994; DOI 10.1006/obhd.1994.1087)",
+  };
 }
 
 // ─── routes ─────────────────────────────────────────────────
@@ -51,6 +64,7 @@ app.post("/api/reports", async (c) => {
 
   const id = newId("rpt");
   const created = new Date().toISOString();
+  const priority = computePriority(ai, 1, 0, Boolean(ai?.location || body.locationText));
   const report = {
     id,
     source: body.source || "web",
@@ -61,8 +75,8 @@ app.post("/api/reports", async (c) => {
     location_text: ai?.location || body.locationText || null,
     confidence: ai?.confidence ?? null,
     status: "terdeteksi",
-    priority: 0,
-    priority_detail: null,
+    priority: priority.score,
+    priority_detail: JSON.stringify(priority),
     reporter_pseudo: body.reporterPseudo || null,
     dinas_id: null,
     sla_due: null,
@@ -166,8 +180,21 @@ app.post("/api/cases", async (c) => {
   const category = first?.category || "lainnya";
 
   // Skor prioritas dari jumlah laporan
-  const detail = { U: 15, D: Math.min(25, 10 + count * 5), V: 10, T: 0, R: 10 };
-  const score = detail.U + detail.D + detail.V + detail.T + detail.R;
+  const detail = {
+    U: 25, // medium urgency default until operator/AI verifies safety risk
+    D: Math.min(100, count * 25),
+    V: 50, // grouped reports have verified textual evidence
+    T: 0,
+    R: 25,
+  };
+  const components = {
+    U: detail.U * PRIORITY_WEIGHTS.U,
+    D: detail.D * PRIORITY_WEIGHTS.D,
+    V: detail.V * PRIORITY_WEIGHTS.V,
+    T: detail.T * PRIORITY_WEIGHTS.T,
+    R: detail.R * PRIORITY_WEIGHTS.R,
+  };
+  const score = Math.round(Object.values(components).reduce((sum, value) => sum + value, 0));
 
   const kasus = {
     id,

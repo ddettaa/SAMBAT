@@ -77,21 +77,34 @@ Warga kirim keluhan (mention/DM/form teks)
 4. **Lampu jalan** — PJU padam, gelap, rusak
 5. **Lainnya** — diteruskan ke operator untuk dikategorikan manual
 
-### 3.4 Formula Prioritas
+### 3.4 Formula Prioritas — berbasis penelitian
 
 ```
 P = 30U + 25D + 20V + 15T + 10R
 ```
 
-| Variabel | Bobot | Arti |
+**Kerangka: Simple Multi-Attribute Rating Technique (SMART).**
+SMART adalah metode Multi-Criteria Decision Making (MCDM) yang menghitung skor total sebagai **penjumlahan terbobot dari nilai tiap kriteria** — persis bentuk rumus di atas. Metode ini diperkenalkan Edwards (1977) dan diformalkan oleh Edwards & Barron (1994) dalam *SMARTS and SMARTER: Improved Simple Methods for Multiattribute Utility Measurement* (Organizational Behavior and Human Decision Processes, 60(3), 306–325, DOI 10.1006/obhd.1994.1087). SMART dipilih karena: (1) sederhana & transparan — tiap komponen skor bisa dijelaskan ke warga, (2) bobot bisa dikalibrasi dengan metode lain, (3) sudah banyak dipakai untuk prioritas layanan publik.
+
+**Bobot kriteria** ditentukan dengan perbandingan berpasangan (pairwise comparison) model **Analytic Hierarchy Process (AHP)** — Saaty (1980), *The Analytic Hierarchy Process*, McGraw-Hill. Urutan kepentingan kriteria mengikuti praktik manajemen insiden **ITIL®** (Axelos, 2019, *ITIL® 4 Create, Deliver and Support*, ch. 3), yang menetapkan bahwa prioritas insiden ditentukan terutama oleh **impact (dampak)** dan **urgency (urgensi)** — di SAMBAT urgensi & duplikasi (indikator dampak kolektif) mendapat bobot tertinggi.
+
+| Variabel | Bobot | Dasar |
 |---|---|---|
-| U | 30 | Urgensi / risiko keselamatan |
-| D | 25 | Jumlah laporan serupa (duplikat) |
-| V | 20 | Kekuatan bukti & kelengkapan lokasi |
-| T | 15 | Lama masalah belum ditangani |
-| R | 10 | Dampak / radius warga terdampak |
+| U — Urgensi / risiko keselamatan | 30 | ITIL: urgency = kecepatan dampak dirasakan |
+| D — Jumlah laporan serupa | 25 | Proksimat dampak kolektif (semakin banyak warga terdampak, makin tinggi) |
+| V — Kekuatan bukti & kelengkapan lokasi | 20 | Gowtham & Deepak (2026): validasi bukti menaikkan prioritas |
+| T — Lama masalah belum ditangani | 15 | Lama tidak tertangani = biaya sosial berjalan |
+| R — Radius / jumlah warga terdampak | 10 | Estimasi populasi terdampak (PostGIS buffer) |
 
 Skor 0–100, tampil transparan di dashboard beserta rincian tiap komponen.
+
+**Referensi pendukung lainnya:**
+- Kumar & Jenamani (2018), *Identification and Prioritization of Urban Issues from Smart City Data*, ICSCET, DOI 10.1109/icscet.2018.8537360 — prioritas isu kota dari data warga
+- Gowtham & Deepak (2026), *A Machine Learning Integrated Framework for Automated Civic Complaint Validation and Prioritization in Smart City Governance*, ICSSAS, DOI 10.1109/icssas68835.2026.11559493 — validasi otomatis + prioritas keluhan (confidence-based)
+- Harinder & Tejasri (2026), *Assessment of Pavement Prioritization Method for Effective Maintenance of Urban Roads*, Innovative Infrastructure Solutions, DOI 10.1007/s41062-025-02455-3 — AHP untuk prioritas pemeliharaan jalan
+- Muttaqin & Pusvita (2023), *Satu Dekade LAPOR: Tren Penggunaan Kanal Layanan SP4N*, Jurnal Pekommas, DOI 10.56873/jpkm.v8i1.5138 — pola keluhan warga Indonesia
+
+**Catatan kalibrasi:** bobot di atas adalah nilai awal (default) dan akan dikalibrasi ulang dengan expert judgment dari dinas kota pada pilot bulan ke-5 — nilai bobot bukan angka sakral, kerangka SMART yang membuatnya bisa dijelaskan & diubah transparan.
 
 ### 3.5 SLA & Eskalasi
 
