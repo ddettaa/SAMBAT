@@ -1,0 +1,29 @@
+# deps
+node_modules/
+**/node_modules/
+
+# builds
+.next/
+dist/
+build/
+*.tsbuildinfo
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# runtime
+*.log
+data/
+uploads/
+
+# misc
+.DS_Store
+*.puml.png

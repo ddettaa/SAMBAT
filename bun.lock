@@ -1,0 +1,27 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "sambat",
+    },
+    "apps/api": {
+      "name": "@sambat/api",
+      "version": "0.1.0",
+      "dependencies": {
+        "hono": "^4.6.0",
+      },
+    },
+    "packages/shared": {
+      "name": "@sambat/shared",
+      "version": "0.1.0",
+    },
+  },
+  "packages": {
+    "@sambat/api": ["@sambat/api@workspace:apps/api"],
+
+    "@sambat/shared": ["@sambat/shared@workspace:packages/shared"],
+
+    "hono": ["hono@4.13.0", "", {}, "sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ=="],
+  }
+}

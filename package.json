@@ -1,0 +1,5 @@
+{
+  "name": "sambat",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"]
+}

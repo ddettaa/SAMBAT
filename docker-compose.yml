@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sambat
+      POSTGRES_PASSWORD: sambat
+      POSTGRES_DB: sambat
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sambat"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./apps/api
+    environment:
+      DATABASE_URL: postgres://sambat:sambat@db:5432/sambat
+      REDIS_URL: redis://redis:6379
+      AI_URL: http://ai:8000
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  ai:
+    build: ./apps/ai
+    environment:
+      MODEL_NAME: indolem/indobert-base-uncased
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
