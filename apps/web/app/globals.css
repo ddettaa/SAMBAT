@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: #09090b;
+  --foreground: #f4f4f5;
+  --border: #27272a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+/* Leaflet Map overrides */
+.leaflet-container {
+  background: #09090b !important;
+}
+.leaflet-bar {
+  border: 1px solid #27272a !important;
+}
+.leaflet-bar a {
+  background-color: #18181b !important;
+  color: #f4f4f5 !important;
+  border-bottom: 1px solid #27272a !important;
+}
+.leaflet-bar a:hover {
+  background-color: #27272a !important;
+}
+.leaflet-popup-content-wrapper {
+  background: #18181b !important;
+  color: #f4f4f5 !important;
+  border-radius: 8px !important;
+  border: 1px solid #27272a;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3) !important;
+}
+.leaflet-popup-tip {
+  background: #18181b !important;
+  border: 1px solid #27272a;
+}
+
