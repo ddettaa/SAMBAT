@@ -279,6 +279,7 @@ app.post("/api/public/reports", async (c) => {
     status: r.status,
     priority: r.priority,
     priority_detail: result.priorityDetail,
+    risk_detail: result.riskDetail,
   }, 201);
 });
 

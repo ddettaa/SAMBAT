@@ -38,6 +38,73 @@ export async function floodUrgency(kelurahan: string | null) {
   return row?.flood_urgency ?? null;
 }
 
+// ─── category-aware risk (kriteria R) ────────────────────────
+// R must reflect the hazard that matches the complaint, not flood for everything.
+// Each category names the indicators that actually raise its risk.
+const RISK_PROFILE: Record<string, { field: keyof RiskRow; weight: number }[]> = {
+  drainase: [{ field: "banjir", weight: 0.6 }, { field: "genangan", weight: 0.4 }],
+  sampah:   [{ field: "kumuh", weight: 0.5 }, { field: "genangan", weight: 0.3 }, { field: "banjir", weight: 0.2 }],
+  jalan:    [{ field: "macet", weight: 0.5 }, { field: "genangan", weight: 0.3 }, { field: "kumuh", weight: 0.2 }],
+  lampu:    [{ field: "kebakaran", weight: 0.4 }, { field: "kumuh", weight: 0.4 }, { field: "macet", weight: 0.2 }],
+  lainnya:  [{ field: "kumuh", weight: 0.4 }, { field: "banjir", weight: 0.3 }, { field: "genangan", weight: 0.3 }],
+};
+
+// Social vulnerability lifts risk everywhere: poor and disabled residents cope worst.
+const SOCIAL_WEIGHT = 0.25;
+
+export type RiskRow = {
+  banjir: number | null; genangan: number | null; kumuh: number | null;
+  kebakaran: number | null; macet: number | null;
+  dtks_kk: number | null; disabilitas: number | null; penduduk: number | null;
+};
+
+const normalizeKey = (name: string) => name.trim().toUpperCase();
+
+/** Scales a raw count to 0..100 against the city-wide maximum. */
+const scale = (value: number | null, max: number) =>
+  value == null || max <= 0 ? 0 : Math.min(100, (Number(value) / max) * 100);
+
+export async function riskScore(kelurahan: string | null, category: string) {
+  if (!kelurahan) return { score: null, detail: null };
+  const [row] = await sql`SELECT * FROM geo_risk WHERE kelurahan_key = ${normalizeKey(kelurahan)}`;
+  if (!row) return { score: null, detail: null };
+
+  const [max] = await sql`
+    SELECT
+      max(banjir)::float AS banjir, max(genangan)::float AS genangan,
+      max(kumuh)::float AS kumuh, max(kebakaran)::float AS kebakaran,
+      max(macet)::float AS macet, max(dtks_kk)::float AS dtks_kk,
+      max(disabilitas)::float AS disabilitas
+    FROM geo_risk
+  `;
+
+  const profile = RISK_PROFILE[category] ?? RISK_PROFILE.lainnya;
+  const hazard = profile.reduce(
+    (sum, { field, weight }) => sum + weight * scale(row[field], max[field]),
+    0,
+  );
+  // DTKS households and disability counts are absolute; scale both against the city max.
+  const social = 0.6 * scale(row.dtks_kk, max.dtks_kk) + 0.4 * scale(row.disabilitas, max.disabilitas);
+  const score = Math.round(Math.min(100, hazard * (1 - SOCIAL_WEIGHT) + social * SOCIAL_WEIGHT));
+
+  return {
+    score,
+    detail: {
+      kelurahan: row.kelurahan,
+      category,
+      hazard: Math.round(hazard),
+      social: Math.round(social),
+      indicators: profile.map(({ field, weight }) => ({
+        name: field, weight, raw: row[field], scaled: Math.round(scale(row[field], max[field])),
+      })),
+      dtks_kk: row.dtks_kk,
+      disabilitas: row.disabilitas,
+      penduduk: row.penduduk,
+      source: "Geoportal Banjarmasin (BPBD, DPRKP, DISHUB, DINSOS, DISDUKCAPIL)",
+    },
+  };
+}
+
 export async function syncFloodFromGeoportal() {
   const base = PILOT_CONFIG.geoportalBaseUrl;
   const url = `${base}/geoserver/wfs?service=WFS&version=1.0.0&request=GetFeature&typeName=BPBD:Urgensi_Banjir_CRIC_2023_AR100K_AR&outputFormat=json`;

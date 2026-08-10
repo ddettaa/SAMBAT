@@ -7,7 +7,7 @@ const CRITERIA = {
   D: "Jumlah laporan serupa",
   V: "Kelengkapan bukti & lokasi",
   T: "Lama tidak ditangani",
-  R: "Risiko wilayah (banjir)",
+  R: "Risiko & kerentanan wilayah",
 };
 const SAMPLES = [
   "lampu jalan di muka rumah ulun mati sudah saminggu, gelap banar",
@@ -44,6 +44,35 @@ function renderSmart(detail) {
   $("r-method").textContent = detail.method || "";
 }
 
+const RISK_LABEL = {
+  banjir: "Urgensi banjir (BPBD)",
+  genangan: "Titik genangan 2025 (BPBD)",
+  kumuh: "Kawasan kumuh (DPRKP)",
+  kebakaran: "Zona rawan kebakaran (BPBD)",
+  macet: "Titik kemacetan (DISHUB)",
+};
+
+function renderRisk(detail) {
+  const section = $("risk");
+  if (!detail) {
+    section.hidden = true;
+    return;
+  }
+  $("risk-note").textContent =
+    `Kelurahan ${detail.kelurahan} — indikator dipilih sesuai kategori "${detail.category}".`;
+  $("risk-rows").innerHTML = detail.indicators.map((i) =>
+    `<tr><td>${escapeHtml(RISK_LABEL[i.name] || i.name)}</td>` +
+    `<td>${escapeHtml(i.raw ?? "—")}</td><td>${i.weight.toFixed(2)}</td>` +
+    `<td>${escapeHtml(i.scaled)}</td></tr>`).join("");
+  $("risk-hazard").textContent = detail.hazard;
+  $("risk-social").textContent = detail.social;
+  $("risk-dtks").textContent = detail.dtks_kk == null ? "—" : `${detail.dtks_kk} KK`;
+  $("risk-disab").textContent = detail.disabilitas == null ? "—" : `${detail.disabilitas} jiwa`;
+  $("risk-pop").textContent = detail.penduduk == null ? "—" : Number(detail.penduduk).toLocaleString("id-ID");
+  $("risk-source").textContent = detail.source;
+  section.hidden = false;
+}
+
 function renderResult(data) {
   $("r-category").textContent = data.category || "—";
   $("r-confidence").textContent =
@@ -57,6 +86,7 @@ function renderResult(data) {
   $("r-normalized").textContent = data.normalized || "—";
   $("r-reasoning").textContent = data.reasoning || "Tidak ada penjelasan dari model.";
   renderSmart(data.priority_detail);
+  renderRisk(data.risk_detail);
 
   const section = $("result");
   section.hidden = false;

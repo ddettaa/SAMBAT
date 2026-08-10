@@ -1,23 +1,24 @@
 import { sql, id, token, tokenHash, audit } from "./db";
 import { PILOT_CONFIG, calculatePriority } from "./config";
-import { inCityBounds, resolveAdmin, floodUrgency } from "./geo";
+import { inCityBounds, resolveAdmin, floodUrgency, riskScore } from "./geo";
 
 const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
 
 const URGENCY_UTILITY: Record<string, number> = { low: 25, medium: 50, high: 75, critical: 100 };
 
-export function priorityFor(ai: any, reportCount: number, hoursOpen: number, hasLocation: boolean, flood: number | null) {
+export function priorityFor(ai: any, reportCount: number, hoursOpen: number, hasLocation: boolean, flood: number | null, risk?: number | null) {
   return calculatePriority({
     U: URGENCY_UTILITY[ai?.urgency] ?? (ai?.confidence >= PILOT_CONFIG.reviewConfidence ? 75 : 25),
     D: Math.min(100, reportCount * 25),
     V: (hasLocation ? 50 : 0) + (ai?.words_changed > 0 ? 50 : 0),
     T: Math.min(100, Math.floor(hoursOpen / 24) * 25),
-    R: flood != null ? Math.min(100, flood * 10) : 25,
+    // R prefers the category-aware risk score; flood urgency is the legacy fallback.
+    R: risk != null ? risk : flood != null ? Math.min(100, flood * 10) : 25,
   });
 }
 
 export type IntakeResult =
-  | { ok: true; report: any; confirmationToken: string; priorityDetail: any }
+  | { ok: true; report: any; confirmationToken: string; priorityDetail: any; riskDetail?: any }
   | { ok: false; status: number; error: string };
 
 export async function intake(body: any, actorName: string): Promise<IntakeResult> {
@@ -62,6 +63,8 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
     kecamatan = admin.kecamatan;
     flood = await floodUrgency(kelurahan);
   }
+  // Category-aware risk (kriteria R) — hazard profile matched to the complaint type.
+  const risk = await riskScore(kelurahan, category);
 
   const similar = await sql`
     SELECT id FROM reports
@@ -73,7 +76,7 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
   `;
   const duplicateCount = similar.length + 1;
 
-  const priority = priorityFor(ai, duplicateCount, 0, Boolean(locationText || hasCoords), flood);
+  const priority = priorityFor(ai, duplicateCount, 0, Boolean(locationText || hasCoords), flood, risk.score);
   const rid = id("rpt");
   const confirmation = token();
   const confirmationExpires = new Date(Date.now() + PILOT_CONFIG.confirmationTtlHours * 3600 * 1000).toISOString();
@@ -139,7 +142,7 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
   }
 
   const [report] = await sql`SELECT * FROM reports WHERE id = ${rid}`;
-  return { ok: true, report, confirmationToken: confirmation, priorityDetail: priority };
+  return { ok: true, report, confirmationToken: confirmation, priorityDetail: priority, riskDetail: risk.detail };
 }
 
 async function aiClassify(text: string) {

@@ -12,6 +12,7 @@
     "test:e2e": "bun run test-secure-e2e.ts",
     "test:worker": "bun run test-worker.ts",
     "test:geo": "bun test-geo.ts",
+    "test:risk": "bun run test-risk.ts",
     "geo:sync": "bun run src/geo-sync.ts",
     "collector": "bun run src/collector.ts"
   },
