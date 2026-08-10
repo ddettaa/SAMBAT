@@ -258,6 +258,35 @@ app.get("/api/geo/summary", async (c) => {
   return c.json({ admins, flood });
 });
 
+// ─── public demo intake (no API key; prototype only) ─────────
+// Keeps the LLM credential server-side so the static page never carries a secret.
+app.post("/api/public/reports", async (c) => {
+  if (process.env.PUBLIC_DEMO !== "1") return c.json({ error: "public demo disabled" }, 404);
+  const body = await c.req.json().catch(() => null);
+  const result = await intake({ ...(body || {}), source: "web", sourceRef: null }, "public-demo");
+  if (!result.ok) return c.json({ error: result.error }, result.status);
+  const r: any = result.report;
+  return c.json({
+    id: r.id,
+    category: r.category,
+    normalized: r.text_normalized,
+    confidence: r.confidence,
+    ai_used: r.ai_used,
+    reasoning: r.ai_reasoning,
+    kelurahan: r.kelurahan,
+    kecamatan: r.kecamatan,
+    flood_urgency: r.flood_urgency,
+    status: r.status,
+    priority: r.priority,
+    priority_detail: result.priorityDetail,
+  }, 201);
+});
+
+// ─── static prototype (HTML murni) ──────────────────────────
+app.get("/", async (c) => c.html(await Bun.file(`${import.meta.dir}/../public/index.html`).text()));
+app.get("/app.js", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/app.js`), { headers: { "content-type": "application/javascript; charset=utf-8" } }));
+app.get("/style.css", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/style.css`), { headers: { "content-type": "text/css; charset=utf-8" } }));
+
 await migrate();
 const server = Bun.serve({ port: Number(process.env.PORT || 3001), fetch: app.fetch });
 console.log(`SAMBAT API listening on :${server.port}`);
