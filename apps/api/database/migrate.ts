@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { sql } from "../src/db";
 
-const root = new URL(".", import.meta.url).pathname;
+const root = import.meta.dir;
 
 async function files(dir: string) {
   return (await readdir(dir)).filter((name) => /^\d+_.*\.sql$/.test(name)).sort();

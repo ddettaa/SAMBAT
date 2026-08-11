@@ -67,7 +67,7 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
   const risk = await riskScore(kelurahan, category);
 
   const similar = await sql`
-    SELECT id FROM reports
+    SELECT id, ST_Y(geom)::float as lat, ST_X(geom)::float as lng FROM reports
     WHERE category = ${category}
       AND status NOT IN ('selesai','ditolak')
       AND created_at > now() - (${PILOT_CONFIG.dedupWindowDays} || ' days')::interval
@@ -97,6 +97,7 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
         confirmation_token_hash: tokenHash(confirmation),
         confirmation_expires_at: confirmationExpires,
         kelurahan, kecamatan, flood_urgency: flood,
+        image_before: body.imageBefore || null,
       })}`;
 
       if (hasCoords) {
@@ -117,16 +118,30 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
         });
         const allIds = [rid, ...similarIds];
         const caseScore = calculatePriority({ U: 50, D: Math.min(100, allIds.length * 25), V: 50, T: 0, R: flood != null ? Math.min(100, flood * 10) : 50 });
+
+        // Calculate average centroid coordinates
+        const coords = [];
+        if (hasCoords) coords.push({ lat, lng });
+        for (const s of similar) {
+          if (s.lat && s.lng) coords.push({ lat: Number(s.lat), lng: Number(s.lng) });
+        }
+        const hasCentroid = coords.length > 0;
+        const avgLat = hasCentroid ? coords.reduce((sum, c) => sum + c.lat!, 0) / coords.length : null;
+        const avgLng = hasCentroid ? coords.reduce((sum, c) => sum + c.lng!, 0) / coords.length : null;
+
         if (existingCase) {
           const merged = [...new Set([...existingCase.report_ids, ...allIds])];
           await tx`UPDATE cases SET report_ids = ${JSON.stringify(merged)}, report_count = ${merged.length}, score = ${caseScore.score}, updated_at = now() WHERE id = ${existingCase.id}`;
+          if (hasCentroid) {
+            await tx`UPDATE cases SET centroid = ST_SetSRID(ST_MakePoint(${avgLng}, ${avgLat}), 4326) WHERE id = ${existingCase.id}`;
+          }
           await tx`UPDATE reports SET status = 'terverifikasi', updated_at = now() WHERE id = ${rid} AND status = 'terdeteksi'`;
         } else {
-          await tx`INSERT INTO cases ${tx({
-            id: id("case"), title: `Kasus ${category} — ${allIds.length} laporan`,
-            report_ids: JSON.stringify(allIds), report_count: allIds.length,
-            score: caseScore.score, category, status: "terverifikasi",
-          })}`;
+          const newCaseId = id("case");
+          await tx`INSERT INTO cases (id, title, report_ids, report_count, score, category, status) VALUES (${newCaseId}, ${`Kasus ${category} — ${allIds.length} laporan`}, ${JSON.stringify(allIds)}, ${allIds.length}, ${caseScore.score}, ${category}, 'terverifikasi')`;
+          if (hasCentroid) {
+            await tx`UPDATE cases SET centroid = ST_SetSRID(ST_MakePoint(${avgLng}, ${avgLat}), 4326) WHERE id = ${newCaseId}`;
+          }
           for (const reportId of allIds) {
             await tx`UPDATE reports SET status = 'terverifikasi', updated_at = now() WHERE id = ${reportId} AND status = 'terdeteksi'`;
           }

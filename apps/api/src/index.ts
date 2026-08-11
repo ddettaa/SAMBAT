@@ -111,7 +111,11 @@ app.post("/api/reports/:id/status", requireRoles("operator", "dinas"), async (c)
     return c.json({ error: `illegal transition ${row.status} → ${next}`, allowed: TRANSITIONS[row.status] }, 409);
   }
   const who = c.get("actor").name;
-  await sql`UPDATE reports SET status = ${next}, updated_at = now() WHERE id = ${c.req.param("id")}`;
+  const updateObj: any = { status: next, updated_at: sql`now()` };
+  if (body?.imageAfter) {
+    updateObj.image_after = body.imageAfter;
+  }
+  await sql`UPDATE reports SET ${sql(updateObj)} WHERE id = ${c.req.param("id")}`;
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: next, note: body?.note || null, actor: who })}`;
   await audit("status", "report", c.req.param("id"), who, { from: row.status, to: next });
   return c.json({ id: c.req.param("id"), status: next });
@@ -258,6 +262,7 @@ app.get("/api/geo/summary", async (c) => {
   return c.json({ admins, flood });
 });
 
+
 // ─── public demo intake (no API key; prototype only) ─────────
 // Keeps the LLM credential server-side so the static page never carries a secret.
 app.post("/api/public/reports", async (c) => {
@@ -287,6 +292,104 @@ app.post("/api/public/reports", async (c) => {
 app.get("/", async (c) => c.html(await Bun.file(`${import.meta.dir}/../public/index.html`).text()));
 app.get("/app.js", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/app.js`), { headers: { "content-type": "application/javascript; charset=utf-8" } }));
 app.get("/style.css", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/style.css`), { headers: { "content-type": "text/css; charset=utf-8" } }));
+
+// ─── demo helper routes (operator only for presentation) ──
+app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
+  // Truncate runtime data tables
+  await sql`TRUNCATE TABLE notifications, sla_events, cases, reports, collector_inbox, audit_log CASCADE`;
+  
+  // Create default mock data so it is not empty on first demo
+  const list = [
+    { text: "Ada tumpukan sampah besar di dekat TPS Basirih, bau busuk sekali.", category: "sampah", lat: -3.345, lng: 114.585, source: "web", reporterPseudo: "Warga Basirih" },
+    { text: "Jalan Veteran lubangnya makin parah dan dalam, bahaya buat motor.", category: "jalan", lat: -3.321, lng: 114.592, source: "web", reporterPseudo: "Pengendara" },
+    { text: "PJU padam total di sekitar jembatan Mantuil, gelap sekali kalau malam.", category: "lampu", lat: -3.355, lng: 114.602, source: "x", reporterPseudo: "mantuil_bjm" }
+  ];
+
+  for (const item of list) {
+    await intake({
+      text: item.text,
+      source: item.source,
+      latitude: item.lat,
+      longitude: item.lng,
+      reporterPseudo: item.reporterPseudo,
+      imageBefore: `/mock-images/before-${item.category}.jpg`
+    }, "system-demo");
+  }
+
+  return c.json({ ok: true, message: "Database cleared and reseeded with 3 active reports" });
+});
+
+app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const scenario = body?.scenario || "banjar";
+  
+  if (scenario === "banjar") {
+    const res = await intake({
+      text: "Selokan di muka rumah ulun mampet banar, mun hujan lebat banyu naik.",
+      source: "web",
+      latitude: -3.342,
+      longitude: 114.583,
+      reporterPseudo: "Ulun Banjar",
+      imageBefore: "/mock-images/before-drainase.jpg"
+    }, "web-form");
+    return c.json(res);
+  }
+  
+  if (scenario === "duplicate") {
+    const results = [];
+    const reports = [
+      { text: "Jalanan berlubang di Jalan Belitung Darat dekat simpang", lat: -3.315, lng: 114.578, pseudo: "Warga A" },
+      { text: "ada lubang besar membahayakan di jl belitung darat", lat: -3.3155, lng: 114.5782, pseudo: "Warga B" },
+      { text: "Belitung darat jalannya rusak parah tolong ditambal", lat: -3.3148, lng: 114.5778, pseudo: "Warga C" }
+    ];
+    for (const r of reports) {
+      const res = await intake({
+        text: r.text,
+        source: "web",
+        latitude: r.lat,
+        longitude: r.lng,
+        reporterPseudo: r.pseudo,
+        imageBefore: "/mock-images/before-jalan.jpg"
+      }, "web-form");
+      results.push(res);
+    }
+    return c.json({ ok: true, results });
+  }
+
+  if (scenario === "low_confidence") {
+    const res = await intake({
+      text: "Ada masalah lingkungan yang kurang mengenakkan di daerah ini.",
+      source: "whatsapp",
+      latitude: -3.332,
+      longitude: 114.595,
+      reporterPseudo: "Anonim",
+    }, "whatsapp-bot");
+    return c.json(res);
+  }
+
+  if (scenario === "sla_escalated") {
+    const res = await intake({
+      text: "Lampu jalan mati dekat simpang empat pramuka",
+      source: "web",
+      latitude: -3.328,
+      longitude: 114.615,
+      reporterPseudo: "Warga Pramuka",
+      imageBefore: "/mock-images/before-lampu.jpg"
+    }, "web-form");
+    
+    if (res.ok) {
+      const reportId = res.report.id;
+      const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+      const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
+      await sql`UPDATE reports SET created_at = ${threeDaysAgo}, sla_due = ${twoDaysAgo}, status = diteruskan, dinas_id = d-dishub WHERE id = ${reportId}`;
+      await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: reportId, status: "diteruskan", note: "force route for SLA test", actor: "operator", created_at: threeDaysAgo })}`;
+    }
+    return c.json(res);
+  }
+
+  return c.json({ error: "unknown scenario" }, 400);
+});
+
 
 await migrate();
 const server = Bun.serve({ port: Number(process.env.PORT || 3001), fetch: app.fetch });

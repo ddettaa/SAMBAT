@@ -1,0 +1,2 @@
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS image_before TEXT;
+ALTER TABLE reports ADD COLUMN IF NOT EXISTS image_after TEXT;
