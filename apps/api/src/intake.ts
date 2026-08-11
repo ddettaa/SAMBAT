@@ -117,7 +117,14 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
           return ids.some((rid: string) => similarIds.includes(rid));
         });
         const allIds = [rid, ...similarIds];
-        const caseScore = calculatePriority({ U: 50, D: Math.min(100, allIds.length * 25), V: 50, T: 0, R: flood != null ? Math.min(100, flood * 10) : 50 });
+        const caseScore = calculatePriority({
+          U: 50,
+          D: Math.min(100, allIds.length * 25),
+          V: 50,
+          T: 0,
+          // Keep case ranking aligned with the category-aware report score.
+          R: risk.score != null ? risk.score : flood != null ? Math.min(100, flood * 10) : 25,
+        });
 
         // Calculate average centroid coordinates
         const coords = [];
