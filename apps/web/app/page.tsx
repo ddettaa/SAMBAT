@@ -15,8 +15,9 @@ const KEYS = {
   dinas: "test-dinas-key",
 };
 
-// Dynamically load MapComponent to disable SSR
+// Dynamically load MapComponent & MapPicker to disable SSR
 const MapComponent = dynamic(() => import("./components/MapComponent"), { ssr: false });
+const MapPicker = dynamic(() => import("./components/MapPicker"), { ssr: false });
 
 interface Report {
   id: string;
@@ -98,6 +99,8 @@ export default function Home() {
   // Warga Form State
   const [wargaText, setWargaText] = useState("");
   const [wargaLocation, setWargaLocation] = useState(PRESET_LOCATIONS[0]);
+  const [wargaCoords, setWargaCoords] = useState({ lat: PRESET_LOCATIONS[0].lat, lng: PRESET_LOCATIONS[0].lng });
+  const [customAddress, setCustomAddress] = useState(PRESET_LOCATIONS[0].text);
   const [wargaPhoto, setWargaPhoto] = useState(PRESET_PHOTOS[0].url);
   const [wargaPseudo, setWargaPseudo] = useState("Warga Banjarmasin");
   const [submittedTicket, setSubmittedTicket] = useState<{ id: string; token: string } | null>(null);
@@ -173,9 +176,9 @@ export default function Home() {
         body: JSON.stringify({
           text: wargaText,
           source: "web",
-          latitude: wargaLocation.lat,
-          longitude: wargaLocation.lng,
-          locationText: wargaLocation.text,
+          latitude: wargaCoords.lat,
+          longitude: wargaCoords.lng,
+          locationText: customAddress,
           reporterPseudo: wargaPseudo,
           imageBefore: wargaPhoto
         })
@@ -520,19 +523,23 @@ export default function Home() {
                           onChange={(e) => setWargaText(e.target.value)}
                           rows={4}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all resize-none"
-                          placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Jalanan di Veteran lubangnya parah banar, kasihan motor amun guring kada aman...')"
+                          placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Jalanan di Veteran lubangnya parah banar, kasihan motor amun lewat kada aman...')"
                           required
                         />
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Lokasi Kejadian</label>
+                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Rekomendasi Titik Cepat</label>
                           <select
                             value={wargaLocation.label}
                             onChange={(e) => {
                               const found = PRESET_LOCATIONS.find(loc => loc.label === e.target.value);
-                              if (found) setWargaLocation(found);
+                              if (found) {
+                                setWargaLocation(found);
+                                setWargaCoords({ lat: found.lat, lng: found.lng });
+                                setCustomAddress(found.text);
+                              }
                             }}
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
                           >
@@ -553,6 +560,31 @@ export default function Home() {
                               <option key={photo.label} value={photo.url}>{photo.label}</option>
                             ))}
                           </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Alamat Lengkap / Keterangan Titik</label>
+                        <input
+                          type="text"
+                          value={customAddress}
+                          onChange={(e) => setCustomAddress(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
+                          placeholder="Masukkan nama jalan, RT/RW, dan patokan detail..."
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Pilih Titik Lokasi Detail di Peta</label>
+                        <MapPicker 
+                          lat={wargaCoords.lat} 
+                          lng={wargaCoords.lng} 
+                          onChange={(lat, lng) => setWargaCoords({ lat, lng })} 
+                        />
+                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                          <span>Latitude: {wargaCoords.lat.toFixed(5)}</span>
+                          <span>Longitude: {wargaCoords.lng.toFixed(5)}</span>
                         </div>
                       </div>
 
