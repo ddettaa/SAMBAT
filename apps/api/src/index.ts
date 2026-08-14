@@ -111,11 +111,11 @@ app.post("/api/reports/:id/status", requireRoles("operator", "dinas"), async (c)
     return c.json({ error: `illegal transition ${row.status} → ${next}`, allowed: TRANSITIONS[row.status] }, 409);
   }
   const who = c.get("actor").name;
-  const updateObj: any = { status: next, updated_at: sql`now()` };
   if (body?.imageAfter) {
-    updateObj.image_after = body.imageAfter;
+    await sql`UPDATE reports SET status = ${next}, image_after = ${body.imageAfter}, updated_at = now() WHERE id = ${c.req.param("id")}`;
+  } else {
+    await sql`UPDATE reports SET status = ${next}, updated_at = now() WHERE id = ${c.req.param("id")}`;
   }
-  await sql`UPDATE reports SET ${sql(updateObj)} WHERE id = ${c.req.param("id")}`;
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: next, note: body?.note || null, actor: who })}`;
   await audit("status", "report", c.req.param("id"), who, { from: row.status, to: next });
   return c.json({ id: c.req.param("id"), status: next });
