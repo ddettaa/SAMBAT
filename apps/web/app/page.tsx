@@ -92,6 +92,9 @@ export default function Home() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [selectedDinas, setSelectedDinas] = useState<string>("d-pupr");
   
+  // Real-time ticking state for SLA countdowns
+  const [currentTime, setCurrentTime] = useState(Date.now());
+  
   // Warga Form State
   const [wargaText, setWargaText] = useState("");
   const [wargaLocation, setWargaLocation] = useState(PRESET_LOCATIONS[0]);
@@ -105,7 +108,6 @@ export default function Home() {
   const [trackedTimeline, setTrackedTimeline] = useState<any[]>([]);
   const [trackingError, setTrackingError] = useState("");
   const [confirmSuccess, setConfirmSuccess] = useState(false);
-  const [confirmAttempts, setConfirmAttempts] = useState(0);
   const [confirmToken, setConfirmToken] = useState("");
 
   // Operator Edit Triage State
@@ -121,23 +123,19 @@ export default function Home() {
   // Fetch Core Data
   const fetchData = async () => {
     try {
-      // 1. Fetch Reports
       const resReports = await fetch(`${API_URL}/api/reports`, {
         headers: { "x-api-key": KEYS.operator }
       });
       if (resReports.ok) setReports(await resReports.json());
 
-      // 2. Fetch Cases
       const resCases = await fetch(`${API_URL}/api/cases`, {
         headers: { "x-api-key": KEYS.operator }
       });
       if (resCases.ok) setCases(await resCases.json());
 
-      // 3. Fetch Dinas
       const resDinas = await fetch(`${API_URL}/api/dinas`);
       if (resDinas.ok) setDinasList(await resDinas.json());
 
-      // 4. Fetch Audit Logs
       const resAudit = await fetch(`${API_URL}/api/audit`, {
         headers: { "x-api-key": KEYS.operator }
       });
@@ -149,8 +147,17 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // refresh every 10s
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchData, 10000);
+    
+    // Live timer tick
+    const clockInterval = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(clockInterval);
+    };
   }, []);
 
   // Citizen Submit Report
@@ -253,12 +260,6 @@ export default function Home() {
     setLoading(true);
     setOperatorMsg("");
     try {
-      // 1. Edit Category if changed
-      if (reviewReport.category !== editCategory) {
-        // Just mock edit by calling status / simulate update if needed
-      }
-
-      // 2. Route to Dinas
       const resRoute = await fetch(`${API_URL}/api/reports/${reviewReport.id}/route`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-api-key": KEYS.operator },
@@ -285,7 +286,6 @@ export default function Home() {
     try {
       const nextStatus = action === "dikerjakan" ? "dikerjakan" : "menunggu_konfirmasi";
       
-      // If resolving, attach a simulated After photo
       let imageAfter = undefined;
       if (action === "selesai") {
         const report = reports.find(r => r.id === reportId);
@@ -362,285 +362,400 @@ export default function Home() {
   // Helper status color classes
   const getStatusBadgeClass = (status: string) => {
     switch (status) {
-      case "terdeteksi": return "bg-red-500/10 text-red-400 border-red-500/20";
-      case "terverifikasi": return "bg-blue-500/10 text-blue-400 border-blue-500/20";
-      case "diteruskan": return "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
-      case "dikerjakan": return "bg-orange-500/10 text-orange-400 border-orange-500/20";
-      case "menunggu_konfirmasi": return "bg-yellow-500/10 text-yellow-400 border-yellow-500/20";
-      case "selesai": return "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-      default: return "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
+      case "terdeteksi": return "bg-red-50 text-red-700 border-red-200";
+      case "terverifikasi": return "bg-blue-50 text-blue-700 border-blue-200";
+      case "diteruskan": return "bg-indigo-50 text-indigo-700 border-indigo-200";
+      case "dikerjakan": return "bg-amber-50 text-amber-700 border-amber-200";
+      case "menunggu_konfirmasi": return "bg-orange-50 text-orange-700 border-orange-200";
+      case "selesai": return "bg-emerald-50 text-emerald-700 border-emerald-200";
+      default: return "bg-slate-50 text-slate-700 border-slate-200";
     }
   };
 
+  // Helper category badge styles
+  const getCategoryBadgeClass = (category: string) => {
+    switch (category) {
+      case "sampah": return "bg-purple-50 text-purple-700 border-purple-200";
+      case "drainase": return "bg-blue-50 text-blue-700 border-blue-200";
+      case "jalan": return "bg-pink-50 text-pink-700 border-pink-200";
+      case "lampu": return "bg-amber-50 text-amber-700 border-amber-200";
+      default: return "bg-slate-50 text-slate-700 border-slate-200";
+    }
+  };
+
+  // Render priority color hex code
+  const getPriorityColor = (priority: number) => {
+    if (priority >= 75) return "#ef4444"; // Red
+    if (priority >= 50) return "#f97316"; // Orange
+    if (priority >= 25) return "#eab308"; // Yellow
+    return "#10b981"; // Green
+  };
+
+  // Render ticking live SLA countdown
+  const renderSlaCountdown = (slaDueStr?: string) => {
+    if (!slaDueStr) return null;
+    const due = new Date(slaDueStr).getTime();
+    const diff = due - currentTime;
+    const isOverdue = diff < 0;
+    const absDiff = Math.abs(diff);
+    
+    const hours = Math.floor(absDiff / (3600 * 1000));
+    const mins = Math.floor((absDiff % (3600 * 1000)) / (60 * 1000));
+    const secs = Math.floor((absDiff % (60 * 1000)) / 1000);
+    
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const countdownStr = `${pad(hours)}:${pad(mins)}:${pad(secs)}`;
+    
+    if (isOverdue) {
+      return (
+        <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
+          <Clock className="h-3 w-3" /> SLA Terlewat ({countdownStr})
+        </span>
+      );
+    }
+    
+    const isUrgent = diff < 2 * 3600 * 1000; // Less than 2 hours
+    
+    return (
+      <span className={`text-[10px] px-2.5 py-1 rounded-full border font-bold flex items-center gap-1 ${
+        isUrgent 
+          ? "bg-amber-50 text-amber-600 border-amber-200 animate-pulse" 
+          : "bg-teal-50 text-teal-700 border-teal-200"
+      }`}>
+        <Clock className="h-3 w-3" /> SLA: {countdownStr}
+      </span>
+    );
+  };
+
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 font-sans text-zinc-100">
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 font-sans antialiased">
       
       {/* ─── LEFT PANEL (75% Width) ─── */}
-      <div className="flex flex-1 flex-col h-full overflow-hidden border-r border-zinc-800">
+      <div className="flex flex-1 flex-col h-full overflow-hidden border-r border-slate-200">
         
-        {/* Header */}
-        <header className="flex items-center justify-between px-8 py-4 border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-md">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <Compass className="h-6 w-6 animate-pulse" />
+        {/* Header (Teal Accent & Wave Design Decorator) */}
+        <header className="flex flex-col border-b border-slate-200 bg-white/85 backdrop-blur-md sticky top-0 z-50">
+          <div className="flex items-center justify-between px-8 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 border border-teal-100 shadow-sm">
+                <Compass className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-base font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                  SAMBAT
+                  <span className="text-[10px] font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full border border-teal-100">
+                    Smart Governance
+                  </span>
+                </h1>
+                <p className="text-xs text-slate-500 font-medium">Sistem Agen Masyarakat Banjarmasin Tanggap</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                SAMBAT <span className="text-xs font-normal text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full border border-zinc-700">Ideathon 2026</span>
-              </h1>
-              <p className="text-xs text-zinc-400">Sistem Agen Masyarakat Banjarmasin Tanggap</p>
-            </div>
+            
+            {/* Tabs Navigation */}
+            <nav className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+              {[
+                { id: "warga", label: "📢 Portal Warga" },
+                { id: "operator", label: "🛡️ Dasbor Operator" },
+                { id: "dinas", label: "🏢 Tugas Dinas" },
+                { id: "transparansi", label: "📊 Transparansi Publik" }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    activeTab === tab.id 
+                      ? "bg-white text-teal-700 shadow-sm border border-slate-200" 
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
           </div>
-          
-          {/* Tabs Navigation */}
-          <nav className="flex items-center gap-1 bg-zinc-950 p-1 rounded-xl border border-zinc-800">
-            {["warga", "operator", "dinas", "transparansi"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-xs font-medium rounded-lg capitalize transition-all ${
-                  activeTab === tab 
-                    ? "bg-zinc-800 text-emerald-400 shadow-lg border border-zinc-700" 
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                {tab === "warga" ? "📢 Warga" : tab === "operator" ? "🛡️ Operator" : tab === "dinas" ? "🏢 Dinas" : "📊 Transparansi"}
-              </button>
-            ))}
-          </nav>
+          {/* River Waves Line Decoration */}
+          <div className="w-full h-1 bg-gradient-to-r from-teal-700 via-sky-500 to-amber-500" />
         </header>
 
         {/* Content Body */}
-        <main className="flex-1 overflow-y-auto p-8 bg-zinc-950/40">
+        <main className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
           
           {/* TAB 1: WARGA PORTAL */}
           {activeTab === "warga" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
               
               {/* Form Lapor */}
-              <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
-                <div>
-                  <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-2">
-                    <Send className="h-4 w-4 text-emerald-400" />
-                    Buat Laporan Baru
-                  </h2>
-                  <p className="text-xs text-zinc-400 mb-6">Laporan akan diproses otomatis oleh AI normalizer Bahasa Banjar.</p>
-                  
-                  <form onSubmit={handleWargaSubmit} className="space-y-4">
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-400 mb-2">Nama Pelapor (Samaran)</label>
-                      <input 
-                        type="text" 
-                        value={wargaPseudo}
-                        onChange={(e) => setWargaPseudo(e.target.value)}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-700"
-                        placeholder="Misal: Warga Basirih"
-                      />
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan">
+                <div className="absolute inset-0 bg-white/95 z-0" />
+                <div className="relative z-10 flex flex-col h-full justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                        <Send className="h-4 w-4 text-teal-700" />
+                        Aduan Warga Banjarmasin
+                      </h2>
+                      <span className="text-[10px] text-slate-400 font-mono italic">Kamus Banjar 3.078 Kata</span>
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-zinc-400 mb-2">Apa yang Terjadi?</label>
-                      <textarea
-                        value={wargaText}
-                        onChange={(e) => setWargaText(e.target.value)}
-                        rows={4}
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-100 focus:outline-none focus:border-zinc-700 resize-none"
-                        placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Parit di muka rumah ulun mampet banar...')"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
+                    
+                    <p className="text-xs text-slate-500 mb-6">
+                      Sampaikan keluhan infrastruktur kota dalam dialek Banjar atau Indonesia. AI akan menormalisasi teks Anda secara real-time.
+                    </p>
+                    
+                    <form onSubmit={handleWargaSubmit} className="space-y-4">
                       <div>
-                        <label className="block text-xs font-medium text-zinc-400 mb-2">Pilih Geolocation</label>
-                        <select
-                          value={wargaLocation.label}
-                          onChange={(e) => {
-                            const found = PRESET_LOCATIONS.find(loc => loc.label === e.target.value);
-                            if (found) setWargaLocation(found);
-                          }}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none"
-                        >
-                          {PRESET_LOCATIONS.map(loc => (
-                            <option key={loc.label} value={loc.label}>{loc.label}</option>
-                          ))}
-                        </select>
+                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Nama Pelapor (Samaran)</label>
+                        <input 
+                          type="text" 
+                          value={wargaPseudo}
+                          onChange={(e) => setWargaPseudo(e.target.value)}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
+                          placeholder="Contoh: Warga Pemurus"
+                        />
                       </div>
-                      
+
                       <div>
-                        <label className="block text-xs font-medium text-zinc-400 mb-2">Pilih Foto Bukti</label>
-                        <select
-                          value={wargaPhoto}
-                          onChange={(e) => setWargaPhoto(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none"
-                        >
-                          {PRESET_PHOTOS.map(photo => (
-                            <option key={photo.label} value={photo.url}>{photo.label}</option>
-                          ))}
-                        </select>
+                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Keluhan Anda</label>
+                        <textarea
+                          value={wargaText}
+                          onChange={(e) => setWargaText(e.target.value)}
+                          rows={4}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all resize-none"
+                          placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Jalanan di Veteran lubangnya parah banar, kasihan motor amun guring kada aman...')"
+                          required
+                        />
                       </div>
-                    </div>
 
-                    <button
-                      type="submit"
-                      disabled={loading || !wargaText}
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-sm mt-4 shadow-lg shadow-emerald-500/10 cursor-pointer"
-                    >
-                      {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                      Kirim Laporan
-                    </button>
-                  </form>
-                </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Lokasi Kejadian</label>
+                          <select
+                            value={wargaLocation.label}
+                            onChange={(e) => {
+                              const found = PRESET_LOCATIONS.find(loc => loc.label === e.target.value);
+                              if (found) setWargaLocation(found);
+                            }}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
+                          >
+                            {PRESET_LOCATIONS.map(loc => (
+                              <option key={loc.label} value={loc.label}>{loc.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Unggah Bukti Foto</label>
+                          <select
+                            value={wargaPhoto}
+                            onChange={(e) => setWargaPhoto(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
+                          >
+                            {PRESET_PHOTOS.map(photo => (
+                              <option key={photo.label} value={photo.url}>{photo.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
 
-                {submittedTicket && (
-                  <div className="mt-6 border border-emerald-500/20 bg-emerald-500/5 rounded-xl p-4 flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
-                      <CheckCircle className="h-4 w-4" />
-                      Laporan Terkirim!
-                    </div>
-                    <p className="text-zinc-400 text-xs">Simpan tiket tracking ini untuk melihat progres laporan Anda:</p>
-                    <div className="bg-zinc-950 rounded border border-zinc-800 px-3 py-2 flex items-center justify-between mt-1">
-                      <code className="text-xs text-white font-mono">{submittedTicket.id}</code>
-                      <button 
-                        onClick={() => {
-                          setTrackId(submittedTicket.id);
-                          setSubmittedTicket(null);
-                        }}
-                        className="text-emerald-400 hover:underline text-xs flex items-center gap-1 font-semibold cursor-pointer"
+                      <button
+                        type="submit"
+                        disabled={loading || !wargaText}
+                        className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs mt-4 shadow-sm shadow-teal-700/20 cursor-pointer"
                       >
-                        Lacak Progres <ChevronRight className="h-3 w-3" />
+                        {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        Kirim Laporan Resmi
                       </button>
-                    </div>
-                    <div className="text-[10px] text-zinc-500 mt-1">
-                      *Token Konfirmasi: <code className="font-mono bg-zinc-950 px-1 py-0.5 rounded">{submittedTicket.token}</code> (Gunakan untuk menutup kasus nanti)
-                    </div>
+                    </form>
                   </div>
-                )}
+
+                  {submittedTicket && (
+                    <div className="mt-6 border border-teal-100 bg-teal-50/50 rounded-xl p-4 flex flex-col gap-2">
+                      <div className="flex items-center gap-2 text-teal-700 text-xs font-bold">
+                        <CheckCircle className="h-4 w-4" />
+                        Laporan Terkirim!
+                      </div>
+                      <p className="text-slate-600 text-[11px]">Salin ID Tiket untuk memantau status pengerjaan oleh Dinas:</p>
+                      <div className="bg-white rounded border border-slate-200 px-3 py-2 flex items-center justify-between mt-1">
+                        <code className="text-xs text-slate-800 font-mono font-bold">{submittedTicket.id}</code>
+                        <button 
+                          onClick={() => {
+                            setTrackId(submittedTicket.id);
+                            setSubmittedTicket(null);
+                          }}
+                          className="text-teal-700 hover:underline text-xs flex items-center gap-1 font-bold cursor-pointer"
+                        >
+                          Lacak Sekarang <ChevronRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
+                        <span>*Simpan Token Konfirmasi Anda:</span>
+                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-amber-600">{submittedTicket.token}</code>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Lacak Tiket */}
-              <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6 flex flex-col">
-                <h2 className="text-base font-semibold text-white flex items-center gap-2 mb-2">
-                  <Search className="h-4 w-4 text-emerald-400" />
-                  Lacak & Konfirmasi Progres
-                </h2>
-                <p className="text-xs text-zinc-400 mb-6">Pantau status penanganan dan konfirmasi jika masalah sudah selesai diperbaiki.</p>
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between">
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2 mb-2">
+                    <Search className="h-4 w-4 text-teal-700" />
+                    Lacak Status & Transparansi Tiket
+                  </h2>
+                  <p className="text-xs text-slate-500 mb-6">Masukkan ID Tiket Anda untuk melihat tahapan pengerjaan dinas secara terbuka.</p>
 
-                <form onSubmit={handleTrack} className="flex gap-2 mb-6">
-                  <input
-                    type="text"
-                    value={trackId}
-                    onChange={(e) => setTrackId(e.target.value)}
-                    placeholder="Masukkan ID Tiket (rpt_...)"
-                    className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-xs text-zinc-100 focus:outline-none focus:border-zinc-700 font-mono"
-                    required
-                  />
-                  <button 
-                    type="submit"
-                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-100 font-semibold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    Lacak
-                  </button>
-                </form>
+                  <form onSubmit={handleTrack} className="flex gap-2 mb-6">
+                    <input
+                      type="text"
+                      value={trackId}
+                      onChange={(e) => setTrackId(e.target.value)}
+                      placeholder="Masukkan ID Tiket (rpt_...)"
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 font-mono focus:bg-white transition-all"
+                      required
+                    />
+                    <button 
+                      type="submit"
+                      className="bg-slate-800 hover:bg-slate-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                    >
+                      Lacak
+                    </button>
+                  </form>
 
-                {trackingError && (
-                  <p className="text-red-400 text-xs bg-red-500/5 border border-red-500/10 rounded-xl p-3 mb-4">{trackingError}</p>
-                )}
+                  {trackingError && (
+                    <p className="text-red-600 text-xs bg-red-50 border border-red-100 rounded-xl p-3 mb-4">{trackingError}</p>
+                  )}
 
-                {trackedReport && (
-                  <div className="space-y-6 flex-1 flex flex-col justify-between">
-                    <div className="space-y-4">
-                      {/* Ticket Summary */}
+                  {trackedReport && (
+                    <div className="space-y-6">
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="text-xs text-zinc-400">ID Tiket: <span className="font-mono text-white text-xs">{trackedReport.id}</span></div>
-                          <h3 className="text-sm font-bold text-white mt-1 capitalize">{trackedReport.category}</h3>
+                          <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Tiket ID: <span className="font-mono text-slate-800">{trackedReport.id}</span></div>
+                          <h3 className="text-sm font-extrabold text-slate-900 mt-1 capitalize flex items-center gap-2">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                              trackedReport.category === "sampah" ? "bg-purple-400" :
+                              trackedReport.category === "drainase" ? "bg-blue-400" :
+                              trackedReport.category === "jalan" ? "bg-pink-400" : "bg-amber-400"
+                            }`}></span>
+                            {trackedReport.category}
+                          </h3>
                         </div>
-                        <span className={`px-2.5 py-1 text-[10px] font-bold tracking-wide uppercase border rounded-full ${getStatusBadgeClass(trackedReport.status)}`}>
+                        <span className={`px-3 py-1 text-[10px] font-bold tracking-wide uppercase border rounded-full ${getStatusBadgeClass(trackedReport.status)}`}>
                           {trackedReport.status.replace("_", " ")}
                         </span>
                       </div>
 
-                      {/* Before / After Images display */}
-                      <div className="grid grid-cols-2 gap-4 mt-2">
+                      {/* Before / After Images */}
+                      <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <span className="block text-[10px] text-zinc-500 mb-1">Bukti Laporan (Warga):</span>
+                          <span className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Foto Kejadian (Warga)</span>
                           {trackedReport.image_before ? (
-                            <img src={trackedReport.image_before} className="w-full h-24 object-cover rounded-lg border border-zinc-800" alt="Bukti Sebelum" />
+                            <img src={trackedReport.image_before} className="w-full h-24 object-cover rounded-xl border border-slate-200 shadow-sm" alt="Foto Sebelum" />
                           ) : (
-                            <div className="w-full h-24 flex items-center justify-center rounded-lg border border-dashed border-zinc-800 text-[10px] text-zinc-500">Tidak ada foto</div>
+                            <div className="w-full h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-[10px] text-slate-400">Tidak ada foto</div>
                           )}
                         </div>
                         <div>
-                          <span className="block text-[10px] text-zinc-500 mb-1">Bukti Perbaikan (Dinas):</span>
+                          <span className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Foto Perbaikan (Dinas)</span>
                           {trackedReport.image_after ? (
-                            <img src={trackedReport.image_after} className="w-full h-24 object-cover rounded-lg border border-zinc-800" alt="Bukti Sesudah" />
+                            <img src={trackedReport.image_after} className="w-full h-24 object-cover rounded-xl border border-slate-200 shadow-sm" alt="Foto Perbaikan" />
                           ) : (
-                            <div className="w-full h-24 flex items-center justify-center rounded-lg border border-dashed border-zinc-800 text-[10px] text-zinc-500">Belum diperbaiki</div>
+                            <div className="w-full h-24 flex items-center justify-center rounded-xl border border-dashed border-slate-200 text-[10px] text-slate-400">Menunggu pengerjaan</div>
                           )}
                         </div>
                       </div>
 
-                      {/* Normalization & Transparent Priority details */}
-                      <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+                      {/* Transparan SMART & Normalization */}
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 relative group">
                         <div>
-                          <span className="block text-[10px] text-zinc-500">Isi Pengaduan Asli:</span>
-                          <p className="text-xs text-zinc-300 italic mt-0.5">"{trackedReport.text_original}"</p>
+                          <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Laporan Asli (Bahasa Banjar)</span>
+                          <p className="text-xs text-slate-600 italic mt-0.5">"{trackedReport.text_original}"</p>
                         </div>
                         {trackedReport.text_normalized && trackedReport.text_normalized !== trackedReport.text_original && (
                           <div>
-                            <span className="block text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
-                              <Check className="h-3 w-3" /> Dipahami SAMBAT AI sebagai:
+                            <span className="block text-[9px] font-bold text-teal-700 uppercase tracking-wider flex items-center gap-1">
+                              <Check className="h-3 w-3" /> Auto-Normalized (Indonesia Baku)
                             </span>
-                            <p className="text-xs text-zinc-200 mt-0.5">"{trackedReport.text_normalized}"</p>
+                            <p className="text-xs text-slate-800 mt-0.5 font-medium">"{trackedReport.text_normalized}"</p>
                           </div>
                         )}
-                        <div className="flex items-center justify-between border-t border-zinc-800 pt-2 text-[10px]">
-                          <span className="text-zinc-500">Skor Prioritas Transparan:</span>
-                          <span className="font-bold text-red-400 text-xs">{trackedReport.priority} / 100</span>
+                        
+                        <div className="border-t border-slate-200 pt-3 flex flex-col gap-1.5">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-500 font-bold">Skor Prioritas SMART:</span>
+                            <span className="font-extrabold text-slate-800" style={{ color: getPriorityColor(trackedReport.priority) }}>
+                              {trackedReport.priority} / 100
+                            </span>
+                          </div>
+                          
+                          {/* SMART Progress Bar */}
+                          <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-500" 
+                              style={{ 
+                                width: `${trackedReport.priority}%`,
+                                backgroundColor: getPriorityColor(trackedReport.priority)
+                              }}
+                            />
+                          </div>
+                          <div className="text-[9px] text-slate-400 italic mt-0.5">*Arahkan kursor ke sini untuk melihat pembobotan SMART.</div>
+                        </div>
+
+                        {/* Interactive Tooltip Formula */}
+                        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-slate-900 text-white text-[10px] p-3 rounded-xl border border-slate-800 shadow-xl z-50 w-72 leading-relaxed">
+                          <div className="font-bold border-b border-slate-700 pb-1 mb-1.5 text-amber-400 flex items-center gap-1">
+                            <Info className="h-3.5 w-3.5" /> Rumus SMART Prioritas:
+                          </div>
+                          <div className="font-mono mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
+                          <div className="space-y-1 text-slate-300 font-mono text-[9px]">
+                            <div>• U (Urgensi AI) = {trackedReport.priority_detail?.U || 25} (Bobot 30%)</div>
+                            <div>• D (Duplikasi Laporan) = {trackedReport.priority_detail?.D || 25} (Bobot 25%)</div>
+                            <div>• V (Kekuatan Bukti) = {trackedReport.priority_detail?.V || 0} (Bobot 20%)</div>
+                            <div>• T (Waktu Tunggu) = {trackedReport.priority_detail?.T || 0} (Bobot 15%)</div>
+                            <div>• R (Radius Dampak) = {trackedReport.priority_detail?.R || 25} (Bobot 10%)</div>
+                          </div>
                         </div>
                       </div>
 
-                      {/* Timeline status */}
+                      {/* Timeline */}
                       <div className="space-y-2">
-                        <span className="block text-[10px] text-zinc-500">Riwayat Timeline:</span>
-                        <div className="space-y-1.5 pl-2 border-l border-zinc-800">
+                        <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Perjalanan Pengaduan</span>
+                        <div className="space-y-3 pl-3 border-l-2 border-slate-200">
                           {trackedTimeline.map((evt, idx) => (
-                            <div key={idx} className="relative pl-3 text-xs">
-                              <span className="absolute -left-[14px] top-1.5 w-2 height-2 rounded-full bg-zinc-700"></span>
-                              <span className="text-zinc-400 capitalize">{evt.status.replace("_", " ")}</span>
-                              {evt.note && <span className="text-zinc-500 font-mono text-[10px] block">{evt.note}</span>}
+                            <div key={idx} className="relative pl-4 text-xs">
+                              <span className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-teal-600 border-2 border-white"></span>
+                              <div className="font-bold text-slate-900 capitalize">{evt.status.replace("_", " ")}</div>
+                              {evt.note && <div className="text-slate-500 font-medium text-[10px] mt-0.5">{evt.note}</div>}
                             </div>
                           ))}
                         </div>
                       </div>
                     </div>
+                  )}
+                </div>
 
-                    {/* Citizen confirmation box */}
-                    {trackedReport.status === "menunggu_konfirmasi" && (
-                      <div className="border border-yellow-500/20 bg-yellow-500/5 rounded-xl p-4 mt-6">
-                        <h4 className="text-xs font-bold text-yellow-400 mb-1 flex items-center gap-1.5">
-                          <AlertTriangle className="h-4 w-4" /> Konfirmasi Penyelesaian
-                        </h4>
-                        <p className="text-[11px] text-zinc-400 mb-3">Dinas menyatakan pekerjaan telah selesai. Masukkan token konfirmasi dari pengaduan untuk menutup tiket:</p>
-                        
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={confirmToken}
-                            onChange={(e) => setConfirmToken(e.target.value)}
-                            placeholder="Token Konfirmasi"
-                            className="bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:outline-none flex-1"
-                          />
-                          <button
-                            onClick={() => handleConfirmCompletion(confirmToken)}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-zinc-950 text-xs font-bold px-3 py-1.5 rounded-lg transition-all cursor-pointer"
-                          >
-                            Konfirmasi Selesai
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                {/* Citizen confirmation box */}
+                {trackedReport && trackedReport.status === "menunggu_konfirmasi" && (
+                  <div className="border border-amber-200 bg-amber-50/50 rounded-2xl p-4 mt-6">
+                    <h4 className="text-xs font-bold text-amber-700 mb-1 flex items-center gap-1.5">
+                      <AlertTriangle className="h-4 w-4" /> Konfirmasi Hasil Perbaikan
+                    </h4>
+                    <p className="text-[11px] text-slate-600 mb-3">Dinas menyatakan keluhan telah selesai dikerjakan. Masukkan token konfirmasi Anda untuk menutup kasus:</p>
+                    
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={confirmToken}
+                        onChange={(e) => setConfirmToken(e.target.value)}
+                        placeholder="Token Konfirmasi"
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none flex-1 font-mono focus:border-amber-500"
+                      />
+                      <button
+                        onClick={() => handleConfirmCompletion(confirmToken)}
+                        className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
+                      >
+                        Konfirmasi Selesai
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -654,17 +769,19 @@ export default function Home() {
               {/* Stats Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Laporan", val: reports.length, icon: FileText, color: "text-zinc-400" },
-                  { label: "Butuh Review", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-red-400" },
-                  { label: "Kasus Aktif", val: cases.length, icon: Building, color: "text-indigo-400" },
-                  { label: "Selesai", val: reports.filter(r => r.status === "selesai").length, icon: CheckCircle, color: "text-emerald-400" }
+                  { label: "Total Pengaduan", val: reports.length, icon: FileText, color: "text-teal-700", bg: "bg-teal-50" },
+                  { label: "Review Ambigu AI", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
+                  { label: "Kasus Kolektif Aktif", val: cases.length, icon: Building, color: "text-sky-600", bg: "bg-sky-50" },
+                  { label: "Penyelesaian Selesai", val: reports.filter(r => r.status === "selesai").length, icon: CheckCircle, color: "text-emerald-700", bg: "bg-emerald-50" }
                 ].map((stat, idx) => (
-                  <div key={idx} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-xl p-4 flex items-center justify-between">
+                  <div key={idx} className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-zinc-500 block">{stat.label}</span>
-                      <span className="text-xl font-bold text-white mt-1 block">{stat.val}</span>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{stat.label}</span>
+                      <span className="text-2xl font-extrabold text-slate-900 mt-1 block">{stat.val}</span>
                     </div>
-                    <stat.icon className={`h-8 w-8 ${stat.color} opacity-20`} />
+                    <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} shadow-inner`}>
+                      <stat.icon className="h-6 w-6" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -672,10 +789,10 @@ export default function Home() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 {/* Triage / Review Queue */}
-                <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6 lg:col-span-2">
-                  <h3 className="text-sm font-semibold text-white mb-4 flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 text-red-400" />
-                    Triage & Verifikasi AI (Antrean Operator)
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 lg:col-span-2">
+                  <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-amber-600" />
+                    Triage & Verifikasi AI (Laporan Ambigu)
                   </h3>
 
                   <div className="space-y-3 overflow-y-auto max-h-[450px] pr-2">
@@ -684,58 +801,65 @@ export default function Home() {
                       .map((report) => (
                         <div 
                           key={report.id}
-                          className={`p-4 rounded-xl border border-zinc-800 cursor-pointer transition-all hover:bg-zinc-800/40 ${
-                            reviewReport?.id === report.id ? "bg-zinc-800/80 border-emerald-500/30" : "bg-zinc-900/30"
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all hover:bg-slate-50/80 ${
+                            reviewReport?.id === report.id ? "bg-teal-50/50 border-teal-500/30" : "bg-white border-slate-200"
                           }`}
                           onClick={() => {
                             setReviewReport(report);
                             setEditCategory(report.category);
-                            // Set default dinas based on category
                             const dinasMap: Record<string, string> = { sampah: "d-dlh", drainase: "d-pupr", jalan: "d-pupr", lampu: "d-dishub" };
                             setEditDinas(dinasMap[report.category] || "d-pupr");
                             setOperatorMsg("");
                           }}
                         >
                           <div className="flex items-center justify-between text-[10px] mb-2">
-                            <span className="font-mono text-zinc-400">{report.id}</span>
-                            <span className="text-red-400 font-semibold bg-red-500/10 px-2 py-0.5 rounded">
+                            <span className="font-mono text-slate-500 font-bold">{report.id}</span>
+                            <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
                               Confidence: {typeof report.confidence === "number" ? Math.round(report.confidence * 100) : 0}%
                             </span>
                           </div>
-                          <p className="text-xs text-zinc-300 italic mb-2">"{report.text_original}"</p>
-                          <div className="flex items-center justify-between text-[10px] text-zinc-500 border-t border-zinc-800/60 pt-2">
-                            <span className="capitalize">Kategori: <strong className="text-zinc-300">{report.category}</strong></span>
-                            <span>Prioritas: <strong className="text-red-400">{report.priority}</strong></span>
+                          
+                          {/* Banjar original text & Normalized text display */}
+                          <div className="space-y-1.5 mb-3">
+                            <p className="text-xs text-slate-500 italic">Banjar: "{report.text_original}"</p>
+                            {report.text_normalized && report.text_normalized !== report.text_original && (
+                              <p className="text-xs text-slate-800 font-bold">Indo: "{report.text_normalized}"</p>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 border-t border-slate-100 pt-2">
+                            <span>Kategori: <strong className="text-slate-800 capitalize">{report.category}</strong></span>
+                            <span>Prioritas: <strong className="text-red-600">{report.priority}</strong></span>
                           </div>
                         </div>
                       ))}
 
                     {reports.filter(r => r.status === "terdeteksi").length === 0 && (
-                      <div className="text-center py-12 border border-dashed border-zinc-800 rounded-xl">
-                        <CheckCircle className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                        <p className="text-xs text-zinc-500">Antrean triage kosong. Semua laporan sudah terverifikasi.</p>
+                      <div className="text-center py-16 border-2 border-dashed border-slate-200 rounded-2xl">
+                        <CheckCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                        <p className="text-xs text-slate-500 font-bold">Semua laporan terverifikasi secara otomatis oleh AI!</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Review Panel */}
-                <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6">
-                  <h3 className="text-sm font-semibold text-white mb-4">Verifikasi & Triage Laporan</h3>
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
+                  <h3 className="text-sm font-extrabold text-slate-900 mb-4">Panel Verifikasi Manual</h3>
                   
                   {reviewReport ? (
                     <div className="space-y-4">
-                      <div className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                        <span className="text-[10px] text-zinc-500">Isi Pengaduan:</span>
-                        <p className="text-xs text-zinc-300 mt-1 italic">"{reviewReport.text_original}"</p>
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">Isi Aduan</span>
+                        <p className="text-xs text-slate-700 italic">"{reviewReport.text_original}"</p>
                       </div>
 
                       <div>
-                        <label className="block text-xs text-zinc-500 mb-1">Klasifikasi Kategori</label>
+                        <label className="block text-xs font-bold text-slate-600 mb-2">Koreksi Kategori</label>
                         <select
                           value={editCategory}
                           onChange={(e) => setEditCategory(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
                         >
                           {["sampah", "drainase", "jalan", "lampu", "lainnya"].map(cat => (
                             <option key={cat} value={cat}>{cat.toUpperCase()}</option>
@@ -744,11 +868,11 @@ export default function Home() {
                       </div>
 
                       <div>
-                        <label className="block text-xs text-zinc-500 mb-1">Dinas Penerima</label>
+                        <label className="block text-xs font-bold text-slate-600 mb-2">Dinas Penerima</label>
                         <select
                           value={editDinas}
                           onChange={(e) => setEditDinas(e.target.value)}
-                          className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none"
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
                         >
                           {dinasList.map(d => (
                             <option key={d.id} value={d.id}>{d.short} — {d.name}</option>
@@ -758,64 +882,70 @@ export default function Home() {
 
                       <button
                         onClick={handleOperatorTriage}
-                        className="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer mt-4"
+                        className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm mt-4"
                       >
                         <Check className="h-4 w-4" />
-                        Verifikasi & Teruskan ke Dinas
+                        Tembuskan ke Dinas
                       </button>
 
                       {operatorMsg && (
-                        <p className="text-[11px] text-yellow-400 bg-yellow-500/5 border border-yellow-500/10 rounded-lg p-2.5 mt-2">{operatorMsg}</p>
+                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-2">{operatorMsg}</p>
                       )}
                     </div>
                   ) : (
-                    <div className="text-center py-20 text-xs text-zinc-500">
-                      Pilih salah satu laporan di antrean sebelah kiri untuk melakukan review AI manual.
+                    <div className="text-center py-24 text-xs text-slate-400 font-medium">
+                      Pilih salah satu laporan di antrean sebelah kiri untuk melakukan review visual manual.
                     </div>
                   )}
                 </div>
               </div>
 
               {/* Cases List */}
-              <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6">
-                <h3 className="text-sm font-semibold text-white mb-4">Kasus Kolektif Hasil Penggabungan (Duplicate Merged)</h3>
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
+                <h3 className="text-sm font-extrabold text-slate-900 mb-4">Kasus Kolektif Hasil Penggabungan (Clustered Cases)</h3>
                 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead>
-                      <tr className="border-b border-zinc-800 text-zinc-500">
-                        <th className="pb-3 font-semibold">Kasus ID</th>
-                        <th className="pb-3 font-semibold">Kategori</th>
-                        <th className="pb-3 font-semibold">Kasus Title / Jumlah Laporan</th>
-                        <th className="pb-3 font-semibold text-center">Priority Score</th>
-                        <th className="pb-3 font-semibold">Status</th>
-                        <th className="pb-3 font-semibold">Tgl Dibuat</th>
+                      <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider">
+                        <th className="pb-3 font-bold">ID Kasus</th>
+                        <th className="pb-3 font-bold">Kategori</th>
+                        <th className="pb-3 font-bold">Nama Kasus & Volume Laporan</th>
+                        <th className="pb-3 font-bold text-center">Bobot Prioritas</th>
+                        <th className="pb-3 font-bold">Status</th>
+                        <th className="pb-3 font-bold">Waktu Dibuat</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800/40">
+                    <tbody className="divide-y divide-slate-100">
                       {cases.map((c) => (
-                        <tr key={c.id} className="text-zinc-300">
-                          <td className="py-3 font-mono text-zinc-400">{c.id}</td>
-                          <td className="py-3 capitalize">{c.category}</td>
-                          <td className="py-3">
-                            <span className="font-semibold text-white">{c.title}</span>
-                            <span className="text-[10px] block text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full w-max mt-1">
-                              {c.report_count} laporan digabungkan
+                        <tr key={c.id} className="text-slate-700 hover:bg-slate-50/50">
+                          <td className="py-4 font-mono text-slate-500 font-bold">{c.id}</td>
+                          <td className="py-4 capitalize">
+                            <span className={`px-2.5 py-1 text-[10px] font-bold border rounded-full ${getCategoryBadgeClass(c.category)}`}>
+                              {c.category}
                             </span>
                           </td>
-                          <td className="py-3 text-center text-red-400 font-bold">{c.score} / 100</td>
-                          <td className="py-3">
-                            <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-full ${getStatusBadgeClass(c.status)}`}>
+                          <td className="py-4">
+                            <span className="font-bold text-slate-900">{c.title}</span>
+                            <div className="mt-1">
+                              <span className="text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full w-max">
+                                {c.report_count} Laporan Serupa Digabung
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 text-center font-bold text-red-600">{c.score} / 100</td>
+                          <td className="py-4">
+                            <span className={`px-2.5 py-1 text-[10px] font-bold border rounded-full ${getStatusBadgeClass(c.status)}`}>
                               {c.status}
                             </span>
                           </td>
-                          <td className="py-3 text-zinc-500">{new Date(c.created_at).toLocaleString("id-ID")}</td>
+                          <td className="py-4 text-slate-400">{new Date(c.created_at).toLocaleString("id-ID")}</td>
                         </tr>
                       ))}
 
                       {cases.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="text-center py-8 text-zinc-500">Belum ada kasus kolektif. Jalankan skenario duplikasi di sidebar untuk melihat penggabungan laporan serupa!</td>
+                          <td colSpan={6} className="text-center py-10 text-slate-400 font-medium">Belum ada kasus yang digabungkan. Jalankan simulasi duplikasi di panel kanan!</td>
                         </tr>
                       )}
                     </tbody>
@@ -830,21 +960,21 @@ export default function Home() {
             <div className="space-y-8 max-w-6xl mx-auto">
               
               {/* Dinas Selection */}
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 pb-5 gap-4">
                 <div>
-                  <h3 className="text-sm font-semibold text-zinc-400">Pilih Ruang Lingkup Dinas</h3>
-                  <p className="text-xs text-zinc-500">Menampilkan pengaduan yang diteruskan sesuai kewenangan dinas terkait.</p>
+                  <h3 className="text-sm font-extrabold text-slate-900">Pilih Dinas Eksekutor</h3>
+                  <p className="text-xs text-slate-500">Tampilkan laporan yang didelegasikan sesuai penanggung jawab OPD terkait.</p>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 overflow-x-auto">
                   {dinasList.map(d => (
                     <button
                       key={d.id}
                       onClick={() => setSelectedDinas(d.id)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                         selectedDinas === d.id 
-                          ? "bg-emerald-500 text-zinc-950 font-bold shadow-lg" 
-                          : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                          ? "bg-teal-700 text-white font-bold shadow-sm" 
+                          : "bg-white border border-slate-200 text-slate-500 hover:text-slate-800"
                       }`}
                     >
                       {d.short}
@@ -854,81 +984,73 @@ export default function Home() {
               </div>
 
               {/* Task list for Dinas */}
-              <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6">
-                <h3 className="text-sm font-semibold text-white mb-6 flex items-center gap-2">
-                  <Building className="h-4 w-4 text-emerald-400" />
-                  Antrean Tugas Dinas — {selectedDinas.toUpperCase()}
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
+                <h3 className="text-sm font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+                  <Building className="h-4 w-4 text-teal-700" />
+                  Antrean Tugas Operasional — {selectedDinas.toUpperCase()}
                 </h3>
 
                 <div className="space-y-4">
                   {reports
                     .filter(r => r.dinas_id === selectedDinas && ["diteruskan", "dikerjakan"].includes(r.status))
-                    .map((report) => {
-                      const isOverdue = report.sla_due && new Date(report.sla_due) < new Date();
-                      
-                      return (
-                        <div key={report.id} className="p-5 rounded-2xl border border-zinc-800 bg-zinc-950 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                          
-                          <div className="space-y-2 flex-1">
-                            <div className="flex items-center gap-3">
-                              <span className="font-mono text-zinc-400 text-xs">{report.id}</span>
-                              <span className={`px-2 py-0.5 text-[10px] font-bold border rounded-full ${getStatusBadgeClass(report.status)}`}>
-                                {report.status}
-                              </span>
-                              
-                              {/* SLA Timer Indicator */}
-                              {report.sla_due && (
-                                <span className={`text-[10px] flex items-center gap-1 font-semibold ${isOverdue ? "text-red-400" : "text-yellow-400"}`}>
-                                  <Clock className="h-3 w-3" />
-                                  {isOverdue 
-                                    ? "SLA Terlewat (Overdue)" 
-                                    : `SLA: Jatuh tempo pada ${new Date(report.sla_due).toLocaleString("id-ID")}`
-                                  }
-                                </span>
-                              )}
-                            </div>
-
-                            <p className="text-xs text-zinc-200 font-medium">"{report.text_normalized || report.text_original}"</p>
-                            <div className="text-[10px] text-zinc-500">
-                              Alamat/Lokasi: <span className="text-zinc-300">{report.location_text || "Banjarmasin"}</span>
-                            </div>
+                    .map((report) => (
+                      <div key={report.id} className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-6 hover:shadow-md transition-all">
+                        
+                        <div className="space-y-2.5 flex-1">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="font-mono text-slate-500 font-bold text-xs">{report.id}</span>
+                            <span className={`px-2.5 py-1 text-[10px] font-bold border rounded-full ${getStatusBadgeClass(report.status)}`}>
+                              {report.status}
+                            </span>
                             
-                            {/* Photo Before */}
-                            {report.image_before && (
-                              <div className="mt-2">
-                                <span className="block text-[9px] text-zinc-500 mb-0.5">Bukti Foto Sebelum Perbaikan:</span>
-                                <img src={report.image_before} className="w-32 h-20 object-cover rounded-lg border border-zinc-800" alt="Sebelum" />
-                              </div>
-                            )}
+                            {/* SLA Countdown Timer */}
+                            {renderSlaCountdown(report.sla_due)}
                           </div>
 
-                          {/* Dinas Actions */}
-                          <div className="flex md:flex-col gap-2 min-w-[150px]">
-                            {report.status === "diteruskan" && (
-                              <button
-                                onClick={() => handleDinasAction(report.id, "dikerjakan")}
-                                className="flex-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-100 text-xs font-bold py-2 px-3 rounded-xl transition-all cursor-pointer"
-                              >
-                                Kerjakan Tugas
-                              </button>
-                            )}
-                            {report.status === "dikerjakan" && (
-                              <button
-                                onClick={() => handleDinasAction(report.id, "selesai")}
-                                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-zinc-950 text-xs font-bold py-2 px-3 rounded-xl transition-all cursor-pointer"
-                              >
-                                Selesaikan (Upload After)
-                              </button>
-                            )}
+                          <div className="space-y-1">
+                            <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Aduan Warga (Normalized)</span>
+                            <p className="text-xs text-slate-800 font-bold">"{report.text_normalized || report.text_original}"</p>
                           </div>
+                          
+                          <div className="text-[10px] text-slate-500 font-medium">
+                            Lokasi: <span className="text-slate-800 font-semibold">{report.location_text || "Banjarmasin"}</span>
+                          </div>
+                          
+                          {/* Photo Before */}
+                          {report.image_before && (
+                            <div className="mt-2">
+                              <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Bukti Awal</span>
+                              <img src={report.image_before} className="w-32 h-20 object-cover rounded-xl border border-slate-200 shadow-sm" alt="Sebelum" />
+                            </div>
+                          )}
                         </div>
-                      );
-                    })}
+
+                        {/* Dinas Actions */}
+                        <div className="flex md:flex-col gap-2 min-w-[150px]">
+                          {report.status === "diteruskan" && (
+                            <button
+                              onClick={() => handleDinasAction(report.id, "dikerjakan")}
+                              className="flex-1 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm"
+                            >
+                              Ambil Tugas
+                            </button>
+                          )}
+                          {report.status === "dikerjakan" && (
+                            <button
+                              onClick={() => handleDinasAction(report.id, "selesai")}
+                              className="flex-1 bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-sm shadow-teal-700/10"
+                            >
+                              Selesaikan & Unggah Bukti
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
 
                   {reports.filter(r => r.dinas_id === selectedDinas && ["diteruskan", "dikerjakan"].includes(r.status)).length === 0 && (
-                    <div className="text-center py-16 border border-dashed border-zinc-800 rounded-xl">
-                      <CheckCircle className="h-8 w-8 text-zinc-600 mx-auto mb-2" />
-                      <p className="text-xs text-zinc-500">Tidak ada tugas aktif untuk dinas ini.</p>
+                    <div className="text-center py-20 border-2 border-dashed border-slate-200 rounded-2xl">
+                      <CheckCircle className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                      <p className="text-xs text-slate-500 font-bold">Tidak ada laporan aktif yang perlu ditindaklanjuti.</p>
                     </div>
                   )}
                 </div>
@@ -943,51 +1065,64 @@ export default function Home() {
               {/* Aggregated KPI Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                  { label: "Total Pengaduan Kota", val: reports.length, desc: "Seluruh keluhan tercatat" },
-                  { label: "Dalam Progres", val: reports.filter(r => ["diteruskan", "dikerjakan"].includes(r.status)).length, desc: "Sedang dikerjakan dinas" },
-                  { label: "Selesai Penanganan", val: reports.filter(r => r.status === "selesai").length, desc: "Tuntas dikonfirmasi warga" },
-                  { label: "SLA Compliance", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "0%", desc: "Respons sesuai target SLA" }
+                  { label: "Total Keluhan Warga", val: reports.length, desc: "Seluruh aduan terdaftar", color: "text-teal-700" },
+                  { label: "Sedang Dikerjakan Dinas", val: reports.filter(r => ["diteruskan", "dikerjakan"].includes(r.status)).length, desc: "Penugasan aktif OPD", color: "text-amber-600" },
+                  { label: "Selesai Penanganan", val: reports.filter(r => r.status === "selesai").length, desc: "Dikonfirmasi warga", color: "text-emerald-700" },
+                  { label: "SLA Compliance Rate", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "100%", desc: "Respons sesuai target waktu", color: "text-sky-700" }
                 ].map((metric, idx) => (
-                  <div key={idx} className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-xl p-4">
-                    <span className="text-[10px] text-zinc-500 block">{metric.label}</span>
-                    <span className="text-xl font-bold text-white mt-1 block">{metric.val}</span>
-                    <span className="text-[9px] text-zinc-400 mt-1 block">{metric.desc}</span>
+                  <div key={idx} className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{metric.label}</span>
+                    <span className={`text-2xl font-extrabold ${metric.color} mt-1 block`}>{metric.val}</span>
+                    <span className="text-[10px] text-slate-400 mt-1 block font-medium">{metric.desc}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Leaflet aggregate Map */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-[450px]">
+              {/* Map & Explainer */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-[480px]">
                 
                 {/* Map Panel */}
-                <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-4 lg:col-span-2 h-[450px]">
-                  <h3 className="text-xs font-semibold text-zinc-400 mb-3">Peta Sebaran Laporan Warga Kota Banjarmasin</h3>
-                  <MapComponent reports={reports} />
-                </div>
-
-                {/* Transparency scoring explainability panel */}
-                <div className="bg-zinc-900/50 backdrop-blur-md border border-zinc-800 rounded-2xl p-6 flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-white mb-2 flex items-center gap-1.5">
-                      <Info className="h-4 w-4 text-emerald-400" />
-                      Prioritas Transparan (SMART)
-                    </h3>
-                    <p className="text-xs text-zinc-400 mb-4">
-                      SAMBAT menggunakan sistem pengambilan keputusan transparan **SMART (Simple Multi-Attribute Rating Technique)** berbasis penelitian. Kami menghitung skor prioritas warga (0–100) menggunakan formula publik:
-                    </p>
-
-                    <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 font-mono text-[10px] text-zinc-400 space-y-2 mb-4">
-                      <div className="font-bold text-white text-xs border-b border-zinc-800 pb-1 mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
-                      <div>• **U** (30%): Urgensi / risiko keselamatan</div>
-                      <div>• **D** (25%): Jumlah laporan serupa (Dampak)</div>
-                      <div>• **V** (20%): Validitas bukti foto & lokasi</div>
-                      <div>• **T** (15%): Lama waktu tunggu kasus</div>
-                      <div>• **R** (10%): Radius wilayah terdampak banjir</div>
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 lg:col-span-2 h-[480px] flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Peta Sebaran Laporan & Prioritas SMART Kota Banjarmasin</h3>
+                    <div className="flex gap-3 text-[10px] font-bold text-slate-600">
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> Kritis</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span> Tinggi</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span> Sedang</span>
+                      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Rendah</span>
                     </div>
                   </div>
+                  <div className="flex-1 rounded-xl overflow-hidden border border-slate-200">
+                    <MapComponent reports={reports} />
+                  </div>
+                </div>
 
-                  <div className="border-t border-zinc-800 pt-4 text-[10px] text-zinc-500">
-                    *Mekanisme ini memastikan tidak ada "laporan VIP" atau pilih kasih birokrasi. Sistem memprioritaskan apa yang paling mendesak bagi warga kota secara adil dan transparan.
+                {/* Explainer SMART */}
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan">
+                  <div className="absolute inset-0 bg-white/95 z-0" />
+                  <div className="relative z-10 flex flex-col h-full justify-between">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900 mb-3 flex items-center gap-1.5">
+                        <Info className="h-4.5 w-4.5 text-teal-700" />
+                        Metode Transparansi SMART
+                      </h3>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                        Prioritas penanganan keluhan dihitung secara terbuka menggunakan metode **SMART (Simple Multi-Attribute Rating Technique)** berbasis penelitian. Kami menghapus intervensi birokrasi subyektif agar alokasi APBD adil bagi warga kota.
+                      </p>
+
+                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-[10px] text-slate-600 space-y-2">
+                        <div className="font-extrabold text-slate-900 text-xs border-b border-slate-200 pb-1.5 mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
+                        <div>• **U** (30%): Urgensi risiko keselamatan</div>
+                        <div>• **D** (25%): Jumlah laporan warga yang sama</div>
+                        <div>• **V** (20%): Validitas bukti foto & lokasi</div>
+                        <div>• **T** (15%): Lama waktu tunda pengerjaan</div>
+                        <div>• **R** (10%): Radius dampak banjir (Geoportal)</div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-4 text-[10px] text-slate-400 italic leading-normal">
+                      *Kalkulasi prioritas dilakukan secara langsung di dalam database PostgreSQL melalui query PostGIS + pgvector setiap kali aduan baru masuk.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -998,95 +1133,99 @@ export default function Home() {
       </div>
 
       {/* ─── RIGHT PANEL: DEMO CONTROL CENTER (25% Width) ─── */}
-      <aside className="w-80 bg-zinc-900 border-l border-zinc-800 p-6 flex flex-col justify-between overflow-y-auto">
-        <div className="space-y-6">
-          <div className="flex items-center gap-2 border-b border-zinc-800 pb-4">
-            <Settings className="h-5 w-5 text-emerald-400 animate-spin-slow" />
-            <div>
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">Demo Control Center</h2>
-              <p className="text-[10px] text-zinc-400">Simulasikan Storyline Lifecycle SAMBAT</p>
-            </div>
-          </div>
-
-          {/* Action Simulation Buttons */}
-          <div className="space-y-3">
-            
-            {/* RESET DATABASE */}
-            <button
-              onClick={handleDemoReset}
-              disabled={simulating !== null}
-              className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {simulating === "reset" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              Clear & Reset Database
-            </button>
-
-            <div className="border-t border-zinc-800 my-4 pt-4">
-              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider block mb-3">Simulasi Skenario Lomba</span>
-              
-              <div className="space-y-2">
-                {/* SCENARIO 1: BANJAR LANGUAGE */}
-                <button
-                  onClick={() => handleDemoSimulate("banjar")}
-                  disabled={simulating !== null}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs py-2 px-3 rounded-lg text-left transition-all border border-zinc-700 flex items-center justify-between cursor-pointer disabled:opacity-50"
-                >
-                  <span className="font-semibold text-white">1. Warga Melapor (Banjar)</span>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-
-                {/* SCENARIO 2: DUPLICATE MERGING */}
-                <button
-                  onClick={() => handleDemoSimulate("duplicate")}
-                  disabled={simulating !== null}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs py-2 px-3 rounded-lg text-left transition-all border border-zinc-700 flex items-center justify-between cursor-pointer disabled:opacity-50"
-                >
-                  <span className="font-semibold text-white">2. Duplikasi Kasus (Auto-Merge)</span>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-
-                {/* SCENARIO 3: LOW CONFIDENCE REVIEW */}
-                <button
-                  onClick={() => handleDemoSimulate("low_confidence")}
-                  disabled={simulating !== null}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs py-2 px-3 rounded-lg text-left transition-all border border-zinc-700 flex items-center justify-between cursor-pointer disabled:opacity-50"
-                >
-                  <span className="font-semibold text-white">3. Review Operator Queue</span>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
-
-                {/* SCENARIO 4: OVERDUE SLA ESCALATION */}
-                <button
-                  onClick={() => handleDemoSimulate("sla_escalated")}
-                  disabled={simulating !== null}
-                  className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs py-2 px-3 rounded-lg text-left transition-all border border-zinc-700 flex items-center justify-between cursor-pointer disabled:opacity-50"
-                >
-                  <span className="font-semibold text-white">4. Kasus Overdue SLA</span>
-                  <ChevronRight className="h-3 w-3" />
-                </button>
+      <aside className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col justify-between overflow-y-auto relative bg-sasirangan">
+        <div className="absolute inset-0 bg-white/96 z-0" />
+        <div className="relative z-10 flex flex-col h-full justify-between">
+          <div className="space-y-6">
+            <div className="flex items-center gap-2.5 border-b border-slate-200 pb-4">
+              <Settings className="h-5 w-5 text-teal-700 animate-spin-slow" />
+              <div>
+                <h2 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Demo Control Center</h2>
+                <p className="text-[10px] text-slate-500 font-semibold mt-0.5">Storyline & Simulasi Lomba</p>
               </div>
             </div>
 
-            {/* Explanation box */}
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 text-[10px] text-zinc-400 space-y-3 mt-4">
-              <h4 className="text-zinc-200 font-bold flex items-center gap-1">
-                <Info className="h-3.5 w-3.5 text-emerald-400" />
-                Mengapa Demo Mode ini?
-              </h4>
-              <p>
-                Skenario di atas menyimulasikan aliran data nyata tanpa bergantung pada API eksternal (Playwright medsos/WA).
-              </p>
-              <p>
-                Cukup klik skenario, lalu tukar tab di atas untuk melihat bagaimana AI mendeteksi kemiripan bahasa Banjar, operator mengevaluasi kategori, dan dinas mengunggah bukti penyelesaian.
-              </p>
+            {/* Action Simulation Buttons */}
+            <div className="space-y-3">
+              
+              {/* RESET DATABASE */}
+              <button
+                onClick={handleDemoReset}
+                disabled={simulating !== null}
+                className="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {simulating === "reset" ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Reset & Seeder Database
+              </button>
+
+              <div className="border-t border-slate-200 my-4 pt-4">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-3">Simulasi Skenario</span>
+                
+                <div className="space-y-2">
+                  {/* SCENARIO 1: BANJAR LANGUAGE */}
+                  <button
+                    onClick={() => handleDemoSimulate("banjar")}
+                    disabled={simulating !== null}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="font-bold">1. Warga Melapor (Banjar)</span>
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                  </button>
+
+                  {/* SCENARIO 2: DUPLICATE MERGING */}
+                  <button
+                    onClick={() => handleDemoSimulate("duplicate")}
+                    disabled={simulating !== null}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="font-bold">2. Duplikasi (PostGIS + pgvector)</span>
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                  </button>
+
+                  {/* SCENARIO 3: LOW CONFIDENCE REVIEW */}
+                  <button
+                    onClick={() => handleDemoSimulate("low_confidence")}
+                    disabled={simulating !== null}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="font-bold">3. Antrean Triage Operator</span>
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                  </button>
+
+                  {/* SCENARIO 4: OVERDUE SLA ESCALATION */}
+                  <button
+                    onClick={() => handleDemoSimulate("sla_escalated")}
+                    disabled={simulating !== null}
+                    className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="font-bold">4. Laporan Overdue SLA</span>
+                    <ChevronRight className="h-3 w-3 text-slate-400" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Jukung / Illustration footer */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-[10px] text-slate-500 space-y-2 mt-4 font-medium leading-relaxed relative">
+                <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <Info className="h-3.5 w-3.5 text-teal-700" />
+                  Alur Demo Tim
+                </div>
+                <p>
+                  Klik skenario di atas secara berturut-turut untuk menyimulasikan siklus penuh tata kelola keluhan warga secara langsung di hadapan juri.
+                </p>
+                <div className="flex justify-end mt-2 opacity-30 select-none pointer-events-none">
+                  {/* Wave and Jukung (boat) subtle layout ASCII/Visual symbol */}
+                  <span className="font-mono text-xs text-teal-700">🛶 ~~~ ~~~</span>
+                </div>
+              </div>
+
             </div>
-
           </div>
-        </div>
 
-        <div className="border-t border-zinc-800 pt-4 text-[10px] text-zinc-500 text-center flex flex-col gap-1">
-          <div>SAMBAT — Smart Governance MVP</div>
-          <div>Banjarmasin Smart City Ideathon 2026</div>
+          <div className="border-t border-slate-200 pt-4 text-[10px] text-slate-400 font-bold text-center flex flex-col gap-1">
+            <div className="text-slate-600">Gawi Sabumi Tech — 2026</div>
+            <div className="tracking-wider text-[9px]">Banjarmasin Smart City Ideathon</div>
+          </div>
         </div>
       </aside>
 
