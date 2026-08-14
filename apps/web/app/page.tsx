@@ -1266,6 +1266,127 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+              {/* Row 2: Analytics & Leaderboard */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                
+                {/* SVG Visual Charts Card */}
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
+                  <h3 className="text-sm font-extrabold text-slate-900 mb-6 flex items-center gap-2">
+                    <Globe className="h-4.5 w-4.5 text-teal-700" />
+                    Statistik & Kategori Pengaduan Terbanyak
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {[
+                      { cat: "Drainase / Banjir", count: reports.filter(r => r.category === "drainase").length, color: "bg-blue-500" },
+                      { cat: "Jalan Rusak", count: reports.filter(r => r.category === "jalan").length, color: "bg-pink-500" },
+                      { cat: "Lampu PJU / Mati", count: reports.filter(r => r.category === "lampu").length, color: "bg-amber-500" },
+                      { cat: "Persampahan / TPS", count: reports.filter(r => r.category === "sampah").length, color: "bg-purple-500" }
+                    ].map((item, idx) => {
+                      const total = reports.length || 1;
+                      const percentage = Math.round((item.count / total) * 100);
+                      return (
+                        <div key={idx} className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-bold text-slate-700">
+                            <span>{item.cat}</span>
+                            <span>{item.count} Laporan ({percentage}%)</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-1000 ${item.color}`}
+                              style={{ width: `${Math.max(4, percentage)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* SVG SLA Trend Line Chart */}
+                  <div className="mt-8 border-t border-slate-200 pt-6">
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Tren Kecepatan Penyelesaian SLA (Hari/Kasus)</span>
+                    <div className="w-full h-32 relative">
+                      <svg className="w-full h-full overflow-visible" viewBox="0 0 400 100" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#0f766e" stopOpacity="0.2"/>
+                            <stop offset="100%" stopColor="#0f766e" stopOpacity="0.0"/>
+                          </linearGradient>
+                        </defs>
+                        {/* Area Path */}
+                        <path d="M 0 90 Q 80 50, 160 70 T 320 20 L 400 30 L 400 100 L 0 100 Z" fill="url(#chartGrad)" />
+                        {/* Line Path */}
+                        <path d="M 0 90 Q 80 50, 160 70 T 320 20 L 400 30" fill="none" stroke="#0f766e" strokeWidth="2.5" strokeLinecap="round" />
+                        {/* Dots */}
+                        <circle cx="80" cy="70" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
+                        <circle cx="160" cy="70" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
+                        <circle cx="240" cy="40" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
+                        <circle cx="320" cy="20" r="4" fill="#f59e0b" stroke="white" strokeWidth="1.5" />
+                      </svg>
+                      {/* X-Axis labels */}
+                      <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-2 uppercase">
+                        <span>Minggu 1</span>
+                        <span>Minggu 2</span>
+                        <span>Minggu 3</span>
+                        <span>Minggu 4 (Aktif)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dinas Leaderboard (OPD Ranking) */}
+                <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
+                  <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+                    <Building className="h-4.5 w-4.5 text-teal-700" />
+                    Kinerja Tanggap Dinas (OPD Leaderboard)
+                  </h3>
+                  <p className="text-xs text-slate-500 mb-6">
+                    Peringkat akuntabilitas respons dinas pemegang anggaran daerah Banjarmasin dalam menyelesaikan keluhan warga.
+                  </p>
+
+                  <div className="space-y-4">
+                    {[
+                      { rank: 1, name: "Dinas Lingkungan Hidup", short: "DLH", sla: 94, time: "14 Jam", score: 96 },
+                      { rank: 2, name: "Dinas Pekerjaan Umum & Penataan Ruang", short: "PUPR", sla: 88, time: "22 Jam", score: 89 },
+                      { rank: 3, name: "Dinas Perhubungan", short: "DISHUB", sla: 85, time: "28 Jam", score: 84 },
+                      { rank: 4, name: "Badan Penanggulangan Bencana Daerah", short: "BPBD", sla: 82, time: "31 Jam", score: 80 }
+                    ].map((dinas) => (
+                      <div key={dinas.rank} className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${
+                            dinas.rank === 1 ? "bg-amber-100 text-amber-700 border border-amber-200" :
+                            dinas.rank === 2 ? "bg-slate-200 text-slate-700 border border-slate-300" :
+                            "bg-slate-100 text-slate-500 border border-slate-200"
+                          }`}>
+                            #{dinas.rank}
+                          </div>
+                          <div>
+                            <span className="font-extrabold text-xs text-slate-900">{dinas.short}</span>
+                            <span className="text-[10px] text-slate-500 block truncate max-w-[200px] sm:max-w-xs">{dinas.name}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-6">
+                          <div className="text-right">
+                            <span className="text-xs font-extrabold text-teal-700 block">{dinas.sla}%</span>
+                            <span className="text-[9px] text-slate-400 block font-bold">SLA Kepatuhan</span>
+                          </div>
+                          <div className="text-right hidden sm:block">
+                            <span className="text-xs font-bold text-slate-700 block">{dinas.time}</span>
+                            <span className="text-[9px] text-slate-400 block">Rata-rata Respons</span>
+                          </div>
+                          <div className="bg-white px-2 py-1 border border-slate-200 rounded-lg text-center min-w-[45px]">
+                            <span className="text-xs font-extrabold text-slate-800">{dinas.score}</span>
+                            <span className="text-[8px] text-slate-400 block font-mono">Index</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
             </div>
           )}
 
