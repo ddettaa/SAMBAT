@@ -317,7 +317,10 @@ export default function Home() {
   const handleDemoReset = async () => {
     setSimulating("reset");
     try {
-      const res = await fetch(`${API_URL}/api/demo/reset`, { method: "POST" });
+      const res = await fetch(`${API_URL}/api/demo/reset`, { 
+        method: "POST",
+        headers: { "x-api-key": KEYS.operator }
+      });
       if (res.ok) {
         alert("Database berhasil di-reset dan di-seeder awal!");
         fetchData();
@@ -336,7 +339,10 @@ export default function Home() {
     try {
       const res = await fetch(`${API_URL}/api/demo/simulate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-api-key": KEYS.operator 
+        },
         body: JSON.stringify({ scenario })
       });
       const data = await res.json();
