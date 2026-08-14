@@ -85,6 +85,18 @@ const PRESET_LOCATIONS = [
   { label: "Pramuka - Jl. Pramuka", lat: -3.328, lng: 114.615, text: "Jalan Pramuka, Kel. Pemurus Luar, Kec. Banjarmasin Timur" }
 ];
 
+const LOCAL_GEOCODE_DB = [
+  { keys: ["s. parman", "parman", "basirih"], lat: -3.342, lng: 114.583 },
+  { keys: ["hasan basri", "belitung", "kayutangi"], lat: -3.315, lng: 114.578 },
+  { keys: ["mantuil"], lat: -3.355, lng: 114.602 },
+  { keys: ["pramuka", "pemurus"], lat: -3.328, lng: 114.615 },
+  { keys: ["veteran"], lat: -3.324, lng: 114.599 },
+  { keys: ["lambung mangkurat", "pusat", "balai kota"], lat: -3.320, lng: 114.591 },
+  { keys: ["a. yani", "ahmad yani", "km"], lat: -3.327, lng: 114.597 },
+  { keys: ["sungai andai", "andai"], lat: -3.295, lng: 114.605 },
+  { keys: ["teluk dalam", "sutoyo"], lat: -3.326, lng: 114.580 }
+];
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<string>("warga");
   const [reports, setReports] = useState<Report[]>([]);
@@ -101,7 +113,8 @@ export default function Home() {
   const [wargaLocation, setWargaLocation] = useState(PRESET_LOCATIONS[0]);
   const [wargaCoords, setWargaCoords] = useState({ lat: PRESET_LOCATIONS[0].lat, lng: PRESET_LOCATIONS[0].lng });
   const [customAddress, setCustomAddress] = useState(PRESET_LOCATIONS[0].text);
-  const [wargaPhoto, setWargaPhoto] = useState(PRESET_PHOTOS[0].url);
+  const [wargaPhoto, setWargaPhoto] = useState("");
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [wargaPseudo, setWargaPseudo] = useState("Warga Banjarmasin");
   const [submittedTicket, setSubmittedTicket] = useState<{ id: string; token: string } | null>(null);
   
@@ -162,6 +175,37 @@ export default function Home() {
       clearInterval(clockInterval);
     };
   }, []);
+
+  // Local automatic geocoding based on typed address keywords
+  useEffect(() => {
+    if (!customAddress) return;
+    const text = customAddress.toLowerCase();
+    const match = LOCAL_GEOCODE_DB.find(loc => 
+      loc.keys.some(k => text.includes(k))
+    );
+    if (match) {
+      setWargaCoords({ lat: match.lat, lng: match.lng });
+    }
+  }, [customAddress]);
+
+  // Handle citizen file upload & camera snap
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Show local preview thumbnail
+    const previewUrl = URL.createObjectURL(file);
+    setPhotoPreview(previewUrl);
+
+    // Read file as Base64 for the API payload
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result === "string") {
+        setWargaPhoto(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Citizen Submit Report
   const handleWargaSubmit = async (e: React.FormEvent) => {
@@ -528,38 +572,39 @@ export default function Home() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Rekomendasi Titik Cepat</label>
-                          <select
-                            value={wargaLocation.label}
-                            onChange={(e) => {
-                              const found = PRESET_LOCATIONS.find(loc => loc.label === e.target.value);
-                              if (found) {
-                                setWargaLocation(found);
-                                setWargaCoords({ lat: found.lat, lng: found.lng });
-                                setCustomAddress(found.text);
-                              }
-                            }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
-                          >
-                            {PRESET_LOCATIONS.map(loc => (
-                              <option key={loc.label} value={loc.label}>{loc.label}</option>
-                            ))}
-                          </select>
-                        </div>
-                        
+                      <div className="grid grid-cols-1 gap-4">
                         <div>
                           <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Unggah Bukti Foto</label>
-                          <select
-                            value={wargaPhoto}
-                            onChange={(e) => setWargaPhoto(e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
-                          >
-                            {PRESET_PHOTOS.map(photo => (
-                              <option key={photo.label} value={photo.url}>{photo.label}</option>
-                            ))}
-                          </select>
+                          <div className="flex items-center gap-4">
+                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-teal-500 transition-all bg-slate-50/50">
+                              <div className="flex flex-col items-center justify-center pt-4 pb-4">
+                                <ImageIcon className="h-6 w-6 text-slate-400 mb-1" />
+                                <p className="text-[10px] text-slate-500 font-bold">Ambil Foto / Upload Gambar</p>
+                                <p className="text-[8px] text-slate-400 mt-0.5">Mendukung Kamera HP & Galeri</p>
+                              </div>
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handlePhotoUpload} 
+                                className="hidden" 
+                              />
+                            </label>
+                            {photoPreview && (
+                              <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">
+                                <img src={photoPreview} className="w-full h-full object-cover" alt="Preview" />
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    setPhotoPreview(null);
+                                    setWargaPhoto("");
+                                  }}
+                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 cursor-pointer"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -572,7 +617,7 @@ export default function Home() {
                           value={customAddress}
                           onChange={(e) => setCustomAddress(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Ketik alamat lengkap atau kosongkan jika menggunakan titik peta..."
+                          placeholder="Ketik alamat lengkap (misal: 'Veteran' atau 'Kayutangi') untuk auto-geser pin peta..."
                         />
                       </div>
 
