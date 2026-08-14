@@ -97,6 +97,21 @@ const LOCAL_GEOCODE_DB = [
   { keys: ["teluk dalam", "sutoyo"], lat: -3.326, lng: 114.580 }
 ];
 
+function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const R = 6371e3; // metres
+  const phi1 = lat1 * Math.PI/180;
+  const phi2 = lat2 * Math.PI/180;
+  const deltaPhi = (lat2-lat1) * Math.PI/180;
+  const deltaLambda = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(deltaPhi/2) * Math.sin(deltaPhi/2) +
+            Math.cos(phi1) * Math.cos(phi2) *
+            Math.sin(deltaLambda/2) * Math.sin(deltaLambda/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c; // in metres
+}
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState<string>("warga");
   const [reports, setReports] = useState<Report[]>([]);
@@ -184,9 +199,58 @@ export default function Home() {
       loc.keys.some(k => text.includes(k))
     );
     if (match) {
-      setWargaCoords({ lat: match.lat, lng: match.lng });
+      setWargaCoords(prev => {
+        const dist = getDistance(prev.lat, prev.lng, match.lat, match.lng);
+        if (dist > 500) { // only fly pin if coordinates differ by > 500m
+          return { lat: match.lat, lng: match.lng };
+        }
+        return prev;
+      });
     }
   }, [customAddress]);
+
+  const handleMapPickerChange = async (lat: number, lng: number) => {
+    setWargaCoords({ lat, lng });
+    
+    try {
+      // 1. Check local DB for very close matches (within 300 meters)
+      let closestLoc = null;
+      let minDistance = 300;
+      
+      for (const loc of LOCAL_GEOCODE_DB) {
+        const dist = getDistance(lat, lng, loc.lat, loc.lng);
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestLoc = loc;
+        }
+      }
+      
+      if (closestLoc) {
+        // Find clean title
+        const cleanName = closestLoc.keys[0].split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        setCustomAddress(`Jalan ${cleanName}, Banjarmasin`);
+        return;
+      }
+      
+      // 2. Query OpenStreetMap Nominatim for real-time reverse geocoding
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`, {
+        headers: { "Accept-Language": "id" }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        const address = data.address;
+        const road = address.road || address.suburb || address.village || address.neighbourhood || "";
+        const city = address.city || address.municipality || "Banjarmasin";
+        const displayName = road ? `${road}, ${city}` : data.display_name || `Jalan dekat ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        setCustomAddress(displayName);
+      } else {
+        setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
+    } catch (e) {
+      setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    }
+  };
 
   // Handle citizen file upload & camera snap
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -626,7 +690,7 @@ export default function Home() {
                         <MapPicker 
                           lat={wargaCoords.lat} 
                           lng={wargaCoords.lng} 
-                          onChange={(lat, lng) => setWargaCoords({ lat, lng })} 
+                          onChange={handleMapPickerChange} 
                         />
                         <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
                           <span>Latitude: {wargaCoords.lat.toFixed(5)}</span>
