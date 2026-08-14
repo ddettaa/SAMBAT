@@ -15,9 +15,8 @@ const KEYS = {
   dinas: "test-dinas-key",
 };
 
-// Dynamically load MapComponent & MapPicker to disable SSR
+// Dynamically load MapComponent to disable SSR
 const MapComponent = dynamic(() => import("./components/MapComponent"), { ssr: false });
-const MapPicker = dynamic(() => import("./components/MapPicker"), { ssr: false });
 
 interface Report {
   id: string;
@@ -674,28 +673,16 @@ export default function Home() {
 
                       <div>
                         <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">
-                          Alamat Lengkap / Keterangan Titik (Opsional jika memilih lewat peta)
+                          Alamat Lengkap / Keterangan Lokasi Kejadian
                         </label>
                         <input
                           type="text"
                           value={customAddress}
                           onChange={(e) => setCustomAddress(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Ketik alamat lengkap (misal: 'Veteran' atau 'Kayutangi') untuk auto-geser pin peta..."
+                          placeholder="Contoh: Jl. Veteran No. 12, Kel. Pemurus Luar"
+                          required
                         />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">Pilih Titik Lokasi Detail di Peta</label>
-                        <MapPicker 
-                          lat={wargaCoords.lat} 
-                          lng={wargaCoords.lng} 
-                          onChange={handleMapPickerChange} 
-                        />
-                        <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono">
-                          <span>Latitude: {wargaCoords.lat.toFixed(5)}</span>
-                          <span>Longitude: {wargaCoords.lng.toFixed(5)}</span>
-                        </div>
                       </div>
 
                       <button
