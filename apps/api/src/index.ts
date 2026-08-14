@@ -305,6 +305,13 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
     { text: "PJU padam total di sekitar jembatan Mantuil, gelap sekali kalau malam.", category: "lampu", lat: -3.355, lng: 114.602, source: "x", reporterPseudo: "mantuil_bjm" }
   ];
 
+  const mockImages: Record<string, string> = {
+    sampah: "https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?q=80&w=400",
+    jalan: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=400",
+    lampu: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=400",
+    drainase: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400"
+  };
+
   for (const item of list) {
     await intake({
       text: item.text,
@@ -312,7 +319,7 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
       latitude: item.lat,
       longitude: item.lng,
       reporterPseudo: item.reporterPseudo,
-      imageBefore: `/mock-images/before-${item.category}.jpg`
+      imageBefore: mockImages[item.category] || null
     }, "system-demo");
   }
 
@@ -330,7 +337,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       latitude: -3.342,
       longitude: 114.583,
       reporterPseudo: "Ulun Banjar",
-      imageBefore: "/mock-images/before-drainase.jpg"
+      imageBefore: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400"
     }, "web-form");
     return c.json(res);
   }
@@ -349,7 +356,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
         latitude: r.lat,
         longitude: r.lng,
         reporterPseudo: r.pseudo,
-        imageBefore: "/mock-images/before-jalan.jpg"
+        imageBefore: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=400"
       }, "web-form");
       results.push(res);
     }
@@ -374,7 +381,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       latitude: -3.328,
       longitude: 114.615,
       reporterPseudo: "Warga Pramuka",
-      imageBefore: "/mock-images/before-lampu.jpg"
+      imageBefore: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=400"
     }, "web-form");
     
     if (res.ok) {

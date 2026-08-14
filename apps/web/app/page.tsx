@@ -852,7 +852,18 @@ export default function Home() {
                           {trackedTimeline.map((evt, idx) => (
                             <div key={idx} className="relative pl-4 text-xs">
                               <span className="absolute -left-[19px] top-1 w-2.5 h-2.5 rounded-full bg-teal-600 border-2 border-white"></span>
-                              <div className="font-bold text-slate-900 capitalize">{evt.status.replace("_", " ")}</div>
+                              <div className="flex items-center justify-between">
+                                <div className="font-bold text-slate-900 capitalize">{evt.status.replace("_", " ")}</div>
+                                <div className="text-[10px] text-slate-400 font-mono">
+                                  {new Date(evt.created_at).toLocaleString("id-ID", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit"
+                                  })}
+                                </div>
+                              </div>
                               {evt.note && <div className="text-slate-500 font-medium text-[10px] mt-0.5">{evt.note}</div>}
                             </div>
                           ))}

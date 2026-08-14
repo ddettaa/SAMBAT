@@ -3,7 +3,14 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 const DATABASE_URL = process.env.DATABASE_URL || "postgres://sambat:***@localhost:5432/sambat";
 export const sql = new SQL(DATABASE_URL);
-export const id = (prefix: string) => `${prefix}_${randomUUID()}`;
+export const id = (prefix: string) => {
+  if (prefix === "rpt") {
+    const digits = Math.floor(100000 + Math.random() * 900000);
+    return `${prefix}_${digits}`;
+  }
+  const hex = randomBytes(4).toString("hex");
+  return `${prefix}_${hex}`;
+};
 export const token = () => randomBytes(24).toString("base64url");
 export const tokenHash = (value: string) => createHash("sha256").update(value).digest("hex");
 
