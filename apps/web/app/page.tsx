@@ -178,7 +178,7 @@ export default function Home() {
           source: "web",
           latitude: wargaCoords.lat,
           longitude: wargaCoords.lng,
-          locationText: customAddress,
+          locationText: customAddress.trim() || `Koordinat: ${wargaCoords.lat.toFixed(5)}, ${wargaCoords.lng.toFixed(5)}`,
           reporterPseudo: wargaPseudo,
           imageBefore: wargaPhoto
         })
@@ -564,14 +564,15 @@ export default function Home() {
                       </div>
 
                       <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Alamat Lengkap / Keterangan Titik</label>
+                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">
+                          Alamat Lengkap / Keterangan Titik (Opsional jika memilih lewat peta)
+                        </label>
                         <input
                           type="text"
                           value={customAddress}
                           onChange={(e) => setCustomAddress(e.target.value)}
                           className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Masukkan nama jalan, RT/RW, dan patokan detail..."
-                          required
+                          placeholder="Ketik alamat lengkap atau kosongkan jika menggunakan titik peta..."
                         />
                       </div>
 
