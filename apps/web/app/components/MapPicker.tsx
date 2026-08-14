@@ -24,9 +24,17 @@ export default function MapPicker({ lat, lng, onChange }: MapPickerProps) {
     document.head.appendChild(link);
 
     if (!mapRef.current) {
+      const banjarmasinBounds = L.latLngBounds(
+        L.latLng(-3.46, 114.50), // South-West
+        L.latLng(-3.25, 114.68)  // North-East
+      );
+
       mapRef.current = L.map(containerRef.current, {
         zoomControl: true,
-        scrollWheelZoom: true
+        scrollWheelZoom: true,
+        maxBounds: banjarmasinBounds,
+        maxBoundsViscosity: 1.0,
+        minZoom: 12
       }).setView([lat, lng], 13);
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
@@ -34,9 +42,6 @@ export default function MapPicker({ lat, lng, onChange }: MapPickerProps) {
         maxZoom: 20
       }).addTo(mapRef.current);
 
-      // Create a red circle marker that is draggable, or a standard icon
-      // Standard Leaflet marker icon asset paths can break in Next.js builds.
-      // So we will use a custom colored CircleMarker which is highly reliable!
       markerRef.current = L.marker([lat, lng], {
         draggable: true,
         icon: L.divIcon({
@@ -50,14 +55,22 @@ export default function MapPicker({ lat, lng, onChange }: MapPickerProps) {
       markerRef.current.on("dragend", () => {
         if (markerRef.current) {
           const position = markerRef.current.getLatLng();
-          onChange(position.lat, position.lng);
+          if (!banjarmasinBounds.contains(position)) {
+            // Snap back to preset lat,lng if dragged out of Banjarmasin
+            markerRef.current.setLatLng([lat, lng]);
+            onChange(lat, lng);
+          } else {
+            onChange(position.lat, position.lng);
+          }
         }
       });
 
       mapRef.current.on("click", (e) => {
-        if (markerRef.current) {
-          markerRef.current.setLatLng(e.latlng);
-          onChange(e.latlng.lat, e.latlng.lng);
+        if (banjarmasinBounds.contains(e.latlng)) {
+          if (markerRef.current) {
+            markerRef.current.setLatLng(e.latlng);
+            onChange(e.latlng.lat, e.latlng.lng);
+          }
         }
       });
     }

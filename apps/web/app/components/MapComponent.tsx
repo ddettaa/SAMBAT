@@ -49,9 +49,17 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
 
     // Initialize Map
     if (!mapRef.current) {
+      const banjarmasinBounds = L.latLngBounds(
+        L.latLng(-3.46, 114.50), // South-West
+        L.latLng(-3.25, 114.68)  // North-East
+      );
+
       mapRef.current = L.map(containerRef.current, {
         zoomControl: true,
-        scrollWheelZoom: true
+        scrollWheelZoom: true,
+        maxBounds: banjarmasinBounds,
+        maxBoundsViscosity: 1.0,
+        minZoom: 12
       }).setView([-3.3194, 114.5908], 13); // Center of Banjarmasin
 
       L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
