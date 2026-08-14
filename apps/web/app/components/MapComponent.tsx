@@ -19,12 +19,19 @@ interface MapComponentProps {
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
-  sampah: "#ef4444",    // Red
-  drainase: "#3b82f6",  // Blue
-  jalan: "#f97316",     // Orange
-  lampu: "#eab308",     // Yellow
-  lainnya: "#8b5cf6"    // Purple
+  sampah: "#a78bfa",    // Light Purple
+  drainase: "#60a5fa",  // Light Blue
+  jalan: "#f472b6",     // Pink
+  lampu: "#fbbf24",     // Amber
+  lainnya: "#94a3b8"    // Slate
 };
+
+function getPriorityColor(priority: number): string {
+  if (priority >= 75) return "#ef4444"; // Red (Critical)
+  if (priority >= 50) return "#f97316"; // Orange (High)
+  if (priority >= 25) return "#eab308"; // Yellow (Medium)
+  return "#10b981"; // Green (Low)
+}
 
 export default function MapComponent({ reports, onSelectReport }: MapComponentProps) {
   const mapRef = useRef<L.Map | null>(null);
@@ -76,11 +83,12 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
       const lng = report.longitude;
 
       if (lat && lng && Number.isFinite(lat) && Number.isFinite(lng)) {
-        const color = CATEGORY_COLORS[report.category] || "#6b7280";
+        const priorityColor = getPriorityColor(report.priority);
+        const catColor = CATEGORY_COLORS[report.category] || "#6b7280";
         
         const marker = L.circleMarker([lat, lng], {
           radius: 10,
-          fillColor: color,
+          fillColor: priorityColor,
           color: "#ffffff",
           weight: 2,
           opacity: 0.9,
@@ -91,13 +99,13 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
         const popupContent = `
           <div style="font-family: sans-serif; padding: 4px; min-width: 150px;">
             <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
-              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${color};"></span>
+              <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: ${catColor};"></span>
               <strong style="text-transform: capitalize; color: #1f2937;">${report.category}</strong>
             </div>
             <p style="margin: 0 0 6px 0; font-size: 12px; color: #4b5563;">${report.location_text || "Lokasi terdeteksi"}</p>
             <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #9ca3af;">
               <span>Status: <strong style="color: #374151;">${report.status.toUpperCase()}</strong></span>
-              <span>Prioritas: <strong style="color: #ef4444;">${report.priority}</strong></span>
+              <span>Prioritas: <strong style="color: ${priorityColor};">${report.priority}</strong></span>
             </div>
           </div>
         `;

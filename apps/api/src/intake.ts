@@ -1,6 +1,7 @@
 import { sql, id, token, tokenHash, audit } from "./db";
 import { PILOT_CONFIG, calculatePriority } from "./config";
 import { inCityBounds, resolveAdmin, floodUrgency, riskScore } from "./geo";
+import { createHash } from "crypto";
 
 const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
 
@@ -66,12 +67,19 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
   // Category-aware risk (kriteria R) — hazard profile matched to the complaint type.
   const risk = await riskScore(kelurahan, category);
 
+  const normText = ai?.normalized || text;
+  const embedding = (await aiEmbed(normText)) || getFallbackEmbedding(normText);
+  const embeddingStr = `[${embedding.join(",")}]`;
+
   const similar = await sql`
     SELECT id, ST_Y(geom)::float as lat, ST_X(geom)::float as lng FROM reports
     WHERE category = ${category}
       AND status NOT IN ('selesai','ditolak')
       AND created_at > now() - (${PILOT_CONFIG.dedupWindowDays} || ' days')::interval
-      AND similarity(text_normalized, ${ai?.normalized || text}) > ${PILOT_CONFIG.dedupSimilarity}
+      AND (
+        similarity(text_normalized, ${normText}) > ${PILOT_CONFIG.dedupSimilarity}
+        OR (embedding IS NOT NULL AND 1 - (embedding <=> ${embeddingStr}::vector) > ${PILOT_CONFIG.dedupSimilarity})
+      )
       ${hasCoords ? sql`AND geom IS NOT NULL AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(${lng},${lat}),4326)::geography, ${PILOT_CONFIG.dedupRadiusMeters})` : sql``}
   `;
   const duplicateCount = similar.length + 1;
@@ -98,6 +106,7 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
         confirmation_expires_at: confirmationExpires,
         kelurahan, kecamatan, flood_urgency: flood,
         image_before: body.imageBefore || null,
+        embedding: embeddingStr,
       })}`;
 
       if (hasCoords) {
@@ -181,4 +190,49 @@ async function aiClassify(text: string) {
   } catch (error: any) {
     return { failure_reason: String(error?.name || "ai_unreachable") };
   }
+}
+
+async function aiEmbed(text: string): Promise<number[] | null> {
+  try {
+    const res = await fetch(`${process.env.AI_URL || "http://localhost:8000"}/embed`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.embedding || null;
+  } catch (error) {
+    return null;
+  }
+}
+
+function getFallbackEmbedding(text: string): number[] {
+  const vec = new Array(384).fill(0);
+  const words = text.toLowerCase().split(/\s+/);
+  if (words.length === 0 || words[0] === "") {
+    vec[0] = 1.0;
+    return vec;
+  }
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const hash = createHash("sha256").update(word, "utf-8").digest();
+    for (let j = 0; j < hash.length; j++) {
+      const dim = (i * 31 + j) % 384;
+      const val = (hash[j] - 127.5) / 127.5;
+      vec[dim] += val;
+    }
+  }
+  let sqSum = 0;
+  for (const val of vec) {
+    sqSum += val * val;
+  }
+  if (sqSum > 0) {
+    const norm = Math.sqrt(sqSum);
+    for (let i = 0; i < vec.length; i++) {
+      vec[i] /= norm;
+    }
+  }
+  return vec;
 }

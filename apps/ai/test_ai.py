@@ -32,4 +32,9 @@ j = r.json()
 for field in ["category", "confidence", "scores", "normalized", "words_changed", "llm_used"]:
     assert field in j, f"missing {field}"
 
+# embed
+r = c.post("/embed", json={"text": "parit mampet"})
+assert r.status_code == 200
+assert len(r.json()["embedding"]) == 384
+
 print("ALL AI TESTS PASSED")

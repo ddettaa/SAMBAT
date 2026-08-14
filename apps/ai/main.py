@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from normalizer import normalize
 from classifier import classify
+from embeddings import get_embedding
 
 app = FastAPI(title="SAMBAT AI Service", version="0.3.0")
 
@@ -15,6 +16,14 @@ class NormalizeResponse(BaseModel):
     normalized: str
     replacements: list[str]
     words_changed: int
+
+
+class EmbedRequest(BaseModel):
+    text: str
+
+
+class EmbedResponse(BaseModel):
+    embedding: list[float]
 
 
 class ClassifyRequest(BaseModel):
@@ -60,3 +69,9 @@ def classify_text(req: ClassifyRequest):
     result.setdefault("model", "")
     result.setdefault("llm_used", False)
     return result
+
+
+@app.post("/embed", response_model=EmbedResponse)
+def embed_text(req: EmbedRequest):
+    vec = get_embedding(req.text)
+    return EmbedResponse(embedding=vec)
