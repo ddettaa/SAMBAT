@@ -2,6 +2,7 @@ import { sql, id, token, tokenHash, audit } from "./db";
 import { PILOT_CONFIG, calculatePriority } from "./config";
 import { inCityBounds, resolveAdmin, floodUrgency, riskScore } from "./geo";
 import { createHash } from "crypto";
+import banjarDict from "../../ai/banjar_dict.json";
 
 const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
 
@@ -50,7 +51,11 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
     inCity = inCityBounds(lat!, lng!);
   }
 
-  const ai = await aiClassify(text);
+  let ai = await aiClassify(text);
+  if (ai.failure_reason) {
+    const fallback = getFallbackClassification(text);
+    ai = { ...ai, ...fallback };
+  }
   const category = CATEGORIES.includes(ai?.category) ? ai.category : "lainnya";
   const locationText = (ai?.location || body.locationText || null) as string | null;
 
@@ -235,4 +240,110 @@ function getFallbackEmbedding(text: string): number[] {
     }
   }
   return vec;
+}
+
+function normalizeBanjar(text: string): { normalized: string; wordsChanged: number } {
+  const words = text.toLowerCase().split(/\s+/);
+  const normalized: string[] = [];
+  let wordsChanged = 0;
+
+  for (const word of words) {
+    const clean = word.replace(/[.,!?;:"']/g, "");
+    if (banjarDict[clean as keyof typeof banjarDict]) {
+      normalized.push(banjarDict[clean as keyof typeof banjarDict]);
+      wordsChanged++;
+    } else {
+      normalized.push(word);
+    }
+  }
+  return { normalized: normalized.join(" "), wordsChanged };
+}
+
+const FALLBACK_KEYWORDS: Record<string, string[]> = {
+  sampah: [
+    "sampah", "tumpuk", "limbah", "kotor", "bau", "busuk", "berserakan",
+    "menumpuk", "penuh", "barandah", "rampung", "sisa", "plastik", "botol",
+    "tps", "dibuang"
+  ],
+  drainase: [
+    "drainase", "selokan", "parit", "mampet", "buntu", "tersumbat", "banyu",
+    "banjir", "genangan", "rob", "meluap", "kebanjiran", "got", "saluran"
+  ],
+  jalan: [
+    "jalan", "jembatan", "jambat", "lubang", "rusak", "aspal", "trotoar",
+    "pecah", "ambrol", "berlubang", "jalanan"
+  ],
+  lampu: [
+    "lampu", "pju", "listrik", "padam", "mati", "gelap", "terang", "penerangan"
+  ]
+};
+
+function getFallbackClassification(text: string) {
+  const { normalized, wordsChanged } = normalizeBanjar(text);
+  const t = normalized.toLowerCase();
+  
+  const scores: Record<string, number> = { sampah: 0, drainase: 0, jalan: 0, lampu: 0, lainnya: 0 };
+  let totalMatches = 0;
+  
+  for (const [cat, kws] of Object.entries(FALLBACK_KEYWORDS)) {
+    for (const kw of kws) {
+      const regex = new RegExp(`\\b${kw}\\b`, "i");
+      if (regex.test(t)) {
+        scores[cat]++;
+        totalMatches++;
+      }
+    }
+  }
+
+  if (totalMatches === 0) {
+    return {
+      category: "lainnya",
+      confidence: 0.0,
+      location: "",
+      urgency: "low",
+      reasoning: "rule-based fallback: tidak ada keyword match",
+      model: "rule-based-js",
+      normalized,
+      words_changed: wordsChanged,
+      llm_used: false
+    };
+  }
+
+  let bestCat = "lainnya";
+  let maxScore = 0;
+  for (const [cat, score] of Object.entries(scores)) {
+    if (score > maxScore) {
+      maxScore = score;
+      bestCat = cat;
+    }
+  }
+
+  let confidence = maxScore / totalMatches;
+  if (maxScore >= 2) {
+    confidence = Math.min(1.0, confidence + 0.15);
+  }
+  if (confidence < 0.3) {
+    bestCat = "lainnya";
+  }
+
+  let urgency = "low";
+  const highKeywords = ["banjir", "kebakaran", "ambrol", "rob", "bahaya", "darurat", "kecelakaan"];
+  const mediumKeywords = ["gelap", "macet", "penuh", "meluap"];
+  if (highKeywords.some(w => t.includes(w))) {
+    urgency = "high";
+  } else if (mediumKeywords.some(w => t.includes(w))) {
+    urgency = "medium";
+  }
+
+  return {
+    category: bestCat,
+    confidence: Math.round(confidence * 100) / 100,
+    location: "",
+    urgency,
+    reasoning: "rule-based keyword match fallback",
+    model: "rule-based-js",
+    normalized,
+    words_changed: wordsChanged,
+    llm_used: false
+  };
 }
