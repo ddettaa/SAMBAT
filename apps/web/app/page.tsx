@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { 
   AlertTriangle, CheckCircle, Clock, Compass, FileText, MapPin, 
   Info, RefreshCw, Settings, ShieldAlert, Send, Trash2, User, 
-  Image as ImageIcon, ChevronRight, Plus, Search, Building, Check, Globe
+  Image as ImageIcon, ChevronRight, Plus, Search, Building, Check, Globe, Lock
 } from "lucide-react";
 
 const API_URL = "";
@@ -119,6 +119,11 @@ export default function Home() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [selectedDinas, setSelectedDinas] = useState<string>("d-pupr");
   
+  // Operator Auth State
+  const [operatorKeyInput, setOperatorKeyInput] = useState("");
+  const [isOperatorLoggedIn, setIsOperatorLoggedIn] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  
   // Real-time ticking state for SLA countdowns
   const [currentTime, setCurrentTime] = useState(Date.now());
   
@@ -231,18 +236,18 @@ export default function Home() {
         return;
       }
       
-      // 2. Query OpenStreetMap Nominatim for real-time reverse geocoding
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`, {
-        headers: { "Accept-Language": "id" }
-      });
+      // 2. Query Google Maps Geocoding API for real-time reverse geocoding
+      const apiKey = "AIzaSyDU3JQjZaNsvXE-2UafcTcZxDWCWo5E6hk";
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=id`);
       
       if (res.ok) {
         const data = await res.json();
-        const address = data.address;
-        const road = address.road || address.suburb || address.village || address.neighbourhood || "";
-        const city = address.city || address.municipality || "Banjarmasin";
-        const displayName = road ? `${road}, ${city}` : data.display_name || `Jalan dekat ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        setCustomAddress(displayName);
+        if (data.status === "OK" && data.results && data.results.length > 0) {
+          const formattedAddress = data.results[0].formatted_address;
+          setCustomAddress(formattedAddress);
+        } else {
+          setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }
       } else {
         setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       }
@@ -519,7 +524,7 @@ export default function Home() {
     if (isOverdue) {
       return (
         <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
-          <Clock className="h-3 w-3" /> SLA Terlewat ({countdownStr})
+          <Clock className="h-3 w-3" /> Waktu Terlewati ({countdownStr})
         </span>
       );
     }
@@ -532,7 +537,7 @@ export default function Home() {
           ? "bg-amber-50 text-amber-600 border-amber-200 animate-pulse" 
           : "bg-teal-50 text-teal-700 border-teal-200"
       }`}>
-        <Clock className="h-3 w-3" /> SLA: {countdownStr}
+        <Clock className="h-3 w-3" /> Target Waktu: {countdownStr}
       </span>
     );
   };
@@ -594,133 +599,133 @@ export default function Home() {
           {activeTab === "warga" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
               
-              {/* Form Lapor */}
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan">
+              {/* Social Media Live Feed (X, Instagram, WhatsApp) */}
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan h-[650px]">
                 <div className="absolute inset-0 bg-white/95 z-0" />
-                <div className="relative z-10 flex flex-col h-full justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
+                <div className="relative z-10 flex flex-col h-full justify-between overflow-hidden">
+                  
+                  {/* Header Feed */}
+                  <div className="mb-4 flex-shrink-0">
+                    <div className="flex items-center justify-between">
                       <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                        <Send className="h-4 w-4 text-teal-700" />
-                        Aduan Warga Banjarmasin
+                        <Globe className="h-4.5 w-4.5 text-teal-700 animate-pulse" />
+                        Live Social Listening Feed
                       </h2>
-                      <span className="text-[10px] text-slate-400 font-mono italic">Kamus Banjar 3.078 Kata</span>
+                      <span className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktif
+                      </span>
                     </div>
-                    
-                    <p className="text-xs text-slate-500 mb-6">
-                      Sampaikan keluhan infrastruktur kota dalam dialek Banjar atau Indonesia. AI akan menormalisasi teks Anda secara real-time.
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      Laporan yang ditangkap otomatis oleh AI Agen SAMBAT dari mention dan pesan media sosial warga (X, Instagram, WhatsApp).
                     </p>
-                    
-                    <form onSubmit={handleWargaSubmit} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Nama Pelapor (Samaran)</label>
-                        <input 
-                          type="text" 
-                          value={wargaPseudo}
-                          onChange={(e) => setWargaPseudo(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Contoh: Warga Pemurus"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Keluhan Anda</label>
-                        <textarea
-                          value={wargaText}
-                          onChange={(e) => setWargaText(e.target.value)}
-                          rows={4}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all resize-none"
-                          placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Jalanan di Veteran lubangnya parah banar, kasihan motor amun lewat kada aman...')"
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Unggah Bukti Foto</label>
-                          <div className="flex items-center gap-4">
-                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-teal-500 transition-all bg-slate-50/50">
-                              <div className="flex flex-col items-center justify-center pt-4 pb-4">
-                                <ImageIcon className="h-6 w-6 text-slate-400 mb-1" />
-                                <p className="text-[10px] text-slate-500 font-bold">Ambil Foto / Upload Gambar</p>
-                                <p className="text-[8px] text-slate-400 mt-0.5">Mendukung Kamera HP & Galeri</p>
-                              </div>
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handlePhotoUpload} 
-                                className="hidden" 
-                              />
-                            </label>
-                            {photoPreview && (
-                              <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">
-                                <img src={photoPreview} className="w-full h-full object-cover" alt="Preview" />
-                                <button 
-                                  type="button"
-                                  onClick={() => {
-                                    setPhotoPreview(null);
-                                    setWargaPhoto("");
-                                  }}
-                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">
-                          Alamat Lengkap / Keterangan Lokasi Kejadian
-                        </label>
-                        <input
-                          type="text"
-                          value={customAddress}
-                          onChange={(e) => setCustomAddress(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Contoh: Jl. Veteran No. 12, Kel. Pemurus Luar"
-                          required
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading || !wargaText}
-                        className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs mt-4 shadow-sm shadow-teal-700/20 cursor-pointer"
-                      >
-                        {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Kirim Laporan Resmi
-                      </button>
-                    </form>
                   </div>
 
-                  {submittedTicket && (
-                    <div className="mt-6 border border-teal-100 bg-teal-50/50 rounded-xl p-4 flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-teal-700 text-xs font-bold">
-                        <CheckCircle className="h-4 w-4" />
-                        Laporan Terkirim!
-                      </div>
-                      <p className="text-slate-600 text-[11px]">Salin ID Tiket untuk memantau status pengerjaan oleh Dinas:</p>
-                      <div className="bg-white rounded border border-slate-200 px-3 py-2 flex items-center justify-between mt-1">
-                        <code className="text-xs text-slate-800 font-mono font-bold">{submittedTicket.id}</code>
-                        <button 
-                          onClick={() => {
-                            setTrackId(submittedTicket.id);
-                            setSubmittedTicket(null);
-                          }}
-                          className="text-teal-700 hover:underline text-xs flex items-center gap-1 font-bold cursor-pointer"
-                        >
-                          Lacak Sekarang <ChevronRight className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
-                        <span>*Simpan Token Konfirmasi Anda:</span>
-                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-amber-600">{submittedTicket.token}</code>
-                      </div>
+                  {/* Marquee Vertical Scrolling Container */}
+                  <div className="flex-1 overflow-hidden relative border border-slate-100 rounded-xl bg-slate-50/50 p-2">
+                    {/* Top/Bottom Fade effects for premium layout */}
+                    <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-slate-100/90 to-transparent z-20 pointer-events-none" />
+                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-100/90 to-transparent z-20 pointer-events-none" />
+
+                    <div className="h-full overflow-hidden relative">
+                      {reports.length > 0 ? (
+                        <div className="space-y-4 animate-marquee-vertical absolute w-full">
+                          {/* Duplicate items to achieve infinite loop */}
+                          {[...reports, ...reports, ...reports].map((report, idx) => {
+                            const name = report.reporter_pseudo || "Warga Banjarmasin";
+                            const handle = `@${name.toLowerCase().replace(/\s+/g, "_")}`;
+                            
+                            return (
+                              <div 
+                                key={`${report.id}-${idx}`}
+                                onClick={async () => {
+                                  setTrackId(report.id);
+                                  // Fetch timeline manually for instant update
+                                  try {
+                                    const res = await fetch(`${API_URL}/api/reports/${report.id}`, {
+                                      headers: { "x-api-key": KEYS.operator }
+                                    });
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      setTrackedReport(data);
+                                      setTrackedTimeline(data.timeline || []);
+                                    }
+                                  } catch (e) {
+                                    console.error(e);
+                                  }
+                                }}
+                                className="bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-500 shadow-sm transition-all cursor-pointer hover:shadow-md relative overflow-hidden group pointer-events-auto"
+                              >
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-600 to-sky-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left" />
+                                
+                                <div className="flex gap-3">
+                                  {/* Avatar using dicebear */}
+                                  <img 
+                                    src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}`} 
+                                    className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 flex-shrink-0"
+                                    alt="Avatar" 
+                                  />
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <span className="font-extrabold text-slate-900 text-xs truncate">
+                                          {name}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium ml-1.5">{handle}</span>
+                                      </div>
+                                      <span className="text-[9px] text-slate-400 font-mono">
+                                        {new Date(report.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full text-white ${
+                                        report.source === "x" ? "bg-slate-900" :
+                                        report.source === "whatsapp" ? "bg-emerald-500" :
+                                        "bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-500"
+                                      }`}>
+                                        {report.source === "x" ? "X / TWITTER" : report.source.toUpperCase()}
+                                      </span>
+                                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase border ${getCategoryBadgeClass(report.category)}`}>
+                                        {report.category}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-800 font-semibold mt-2.5 leading-relaxed">
+                                      {report.text_original}
+                                    </p>
+
+                                    {report.text_normalized && report.text_normalized !== report.text_original && (
+                                      <div className="mt-2 p-2 bg-teal-50/40 border border-teal-100/50 rounded-lg text-[10px] text-slate-600 font-medium italic">
+                                        <span className="text-teal-700 font-extrabold uppercase not-italic block text-[8px] tracking-wider mb-0.5">Terjemahan AI:</span>
+                                        "{report.text_normalized}"
+                                      </div>
+                                    )}
+                                    
+                                    <div className="mt-3 flex justify-between items-center text-[10px] text-slate-400">
+                                      <span>ID: <code className="font-mono font-bold text-slate-600">{report.id}</code></span>
+                                      <span className="text-teal-700 font-bold group-hover:underline flex items-center gap-0.5">
+                                        Lacak <ChevronRight className="h-3.5 w-3.5" />
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-24 text-slate-400 text-xs">Belum ada aduan masuk.</div>
+                      )}
                     </div>
-                  )}
+
+                  </div>
+
+                  <div className="mt-4 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-100 pt-3 flex-shrink-0 font-medium">
+                    <span>*Klik aduan untuk melacak perjalanan penanganannya secara langsung.</span>
+                    <span className="font-mono text-teal-700 font-bold">🛶 sambat.bjm</span>
+                  </div>
+
                 </div>
               </div>
 
@@ -802,7 +807,7 @@ export default function Home() {
                         {trackedReport.text_normalized && trackedReport.text_normalized !== trackedReport.text_original && (
                           <div>
                             <span className="block text-[9px] font-bold text-teal-700 uppercase tracking-wider flex items-center gap-1">
-                              <Check className="h-3 w-3" /> Auto-Normalized (Indonesia Baku)
+                              <Check className="h-3 w-3" /> Hasil Terjemahan Otomatis (AI)
                             </span>
                             <p className="text-xs text-slate-800 mt-0.5 font-medium">"{trackedReport.text_normalized}"</p>
                           </div>
@@ -836,11 +841,11 @@ export default function Home() {
                           </div>
                           <div className="font-mono mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
                           <div className="space-y-1 text-slate-300 font-mono text-[9px]">
-                            <div>• U (Urgensi AI) = {trackedReport.priority_detail?.U || 25} (Bobot 30%)</div>
-                            <div>• D (Duplikasi Laporan) = {trackedReport.priority_detail?.D || 25} (Bobot 25%)</div>
+                            <div>• U (Bahaya Keamanan) = {trackedReport.priority_detail?.U || 25} (Bobot 30%)</div>
+                            <div>• D (Laporan Serupa) = {trackedReport.priority_detail?.D || 25} (Bobot 25%)</div>
                             <div>• V (Kekuatan Bukti) = {trackedReport.priority_detail?.V || 0} (Bobot 20%)</div>
                             <div>• T (Waktu Tunggu) = {trackedReport.priority_detail?.T || 0} (Bobot 15%)</div>
-                            <div>• R (Radius Dampak) = {trackedReport.priority_detail?.R || 25} (Bobot 10%)</div>
+                            <div>• R (Kerawanan Daerah) = {trackedReport.priority_detail?.R || 25} (Bobot 10%)</div>
                           </div>
                         </div>
                       </div>
@@ -903,14 +908,97 @@ export default function Home() {
           )}
 
           {/* TAB 2: OPERATOR DASHBOARD */}
-          {activeTab === "operator" && (
+          {activeTab === "operator" && !isOperatorLoggedIn && (
+            <div className="max-w-md mx-auto my-12 bg-white border border-slate-200 shadow-xl rounded-3xl p-8 relative overflow-hidden bg-sasirangan">
+              <div className="absolute inset-0 bg-white/95 z-0" />
+              <div className="relative z-10 flex flex-col items-center text-center">
+                
+                {/* Lock Icon Pulsing */}
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 shadow-md mb-6 animate-bounce">
+                  <Lock className="h-8 w-8" />
+                </div>
+                
+                <h2 className="text-base font-extrabold text-slate-900 mb-2">Otentikasi Operator SAMBAT</h2>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  Masukkan kunci akses operator untuk memverifikasi aduan masuk, melakukan triage, dan mengelola disposisi dinas.
+                </p>
+
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (operatorKeyInput === KEYS.operator) {
+                      setIsOperatorLoggedIn(true);
+                      setLoginError("");
+                    } else {
+                      setLoginError("Kunci akses salah! Silakan coba lagi.");
+                    }
+                  }}
+                  className="w-full space-y-4"
+                >
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-2 uppercase tracking-wider text-left">Kunci Akses Operator</label>
+                    <input 
+                      type="password" 
+                      value={operatorKeyInput}
+                      onChange={(e) => setOperatorKeyInput(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all text-center font-mono tracking-widest"
+                      placeholder="••••••••••••••"
+                      required
+                    />
+                  </div>
+
+                  {loginError && (
+                    <p className="text-[10px] text-red-600 font-bold bg-red-50 border border-red-100 rounded-lg p-2.5">
+                      {loginError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs shadow-sm shadow-teal-700/20 cursor-pointer"
+                  >
+                    Masuk Ke Sistem
+                  </button>
+                </form>
+
+                <div className="mt-8 border-t border-slate-100 pt-4 w-full">
+                  <span className="text-[9px] text-slate-400 font-medium">
+                    Kunci Demo Lomba: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded font-bold text-slate-600">{KEYS.operator}</code>
+                  </span>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {activeTab === "operator" && isOperatorLoggedIn && (
             <div className="space-y-8 max-w-6xl mx-auto">
+              
+              {/* Dashboard Header with Logout */}
+              <div className="flex items-center justify-between bg-white border border-slate-200 shadow-sm rounded-2xl px-6 py-4">
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <User className="h-4.5 w-4.5 text-teal-700" />
+                    Verifikasi & Penyaringan Laporan (Operator)
+                  </h2>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Sesi aktif terverifikasi menggunakan operator_key</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsOperatorLoggedIn(false);
+                    setOperatorKeyInput("");
+                  }}
+                  className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Lock className="h-3.5 w-3.5" /> Kunci Kembali
+                </button>
+              </div>
               
               {/* Stats Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: "Total Pengaduan", val: reports.length, icon: FileText, color: "text-teal-700", bg: "bg-teal-50" },
-                  { label: "Review Ambigu AI", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
+                  { label: "Aduan Perlu Verifikasi", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
                   { label: "Kasus Kolektif Aktif", val: cases.length, icon: Building, color: "text-sky-600", bg: "bg-sky-50" },
                   { label: "Penyelesaian Selesai", val: reports.filter(r => r.status === "selesai").length, icon: CheckCircle, color: "text-emerald-700", bg: "bg-emerald-50" }
                 ].map((stat, idx) => (
@@ -932,7 +1020,7 @@ export default function Home() {
                 <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 lg:col-span-2">
                   <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
                     <ShieldAlert className="h-4 w-4 text-amber-600" />
-                    Triage & Verifikasi AI (Laporan Ambigu)
+                    Penyaringan & Verifikasi AI (Aduan Ambigu)
                   </h3>
 
                   <div className="space-y-3 overflow-y-auto max-h-[450px] pr-2">
@@ -955,7 +1043,7 @@ export default function Home() {
                           <div className="flex items-center justify-between text-[10px] mb-2">
                             <span className="font-mono text-slate-500 font-bold">{report.id}</span>
                             <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
-                              Confidence: {typeof report.confidence === "number" ? Math.round(report.confidence * 100) : 0}%
+                              Tingkat Akurasi AI: {typeof report.confidence === "number" ? Math.round(report.confidence * 100) : 0}%
                             </span>
                           </div>
                           
@@ -963,7 +1051,7 @@ export default function Home() {
                           <div className="space-y-1.5 mb-3">
                             <p className="text-xs text-slate-500 italic">Banjar: "{report.text_original}"</p>
                             {report.text_normalized && report.text_normalized !== report.text_original && (
-                              <p className="text-xs text-slate-800 font-bold">Indo: "{report.text_normalized}"</p>
+                              <p className="text-xs text-slate-800 font-bold">Terjemahan: "{report.text_normalized}"</p>
                             )}
                           </div>
                           
@@ -1208,7 +1296,7 @@ export default function Home() {
                   { label: "Total Keluhan Warga", val: reports.length, desc: "Seluruh aduan terdaftar", color: "text-teal-700" },
                   { label: "Sedang Dikerjakan Dinas", val: reports.filter(r => ["diteruskan", "dikerjakan"].includes(r.status)).length, desc: "Penugasan aktif OPD", color: "text-amber-600" },
                   { label: "Selesai Penanganan", val: reports.filter(r => r.status === "selesai").length, desc: "Dikonfirmasi warga", color: "text-emerald-700" },
-                  { label: "SLA Compliance Rate", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "100%", desc: "Respons sesuai target waktu", color: "text-sky-700" }
+                  { label: "Ketepatan Waktu Dinas", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "100%", desc: "Respons sesuai target waktu", color: "text-sky-700" }
                 ].map((metric, idx) => (
                   <div key={idx} className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5">
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{metric.label}</span>
@@ -1252,16 +1340,16 @@ export default function Home() {
 
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-[10px] text-slate-600 space-y-2">
                         <div className="font-extrabold text-slate-900 text-xs border-b border-slate-200 pb-1.5 mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
-                        <div>• **U** (30%): Urgensi risiko keselamatan</div>
-                        <div>• **D** (25%): Jumlah laporan warga yang sama</div>
-                        <div>• **V** (20%): Validitas bukti foto & lokasi</div>
-                        <div>• **T** (15%): Lama waktu tunda pengerjaan</div>
-                        <div>• **R** (10%): Radius dampak banjir (Geoportal)</div>
+                        <div>• **U** (30%): Tingkat Bahaya Keamanan (Urgensi)</div>
+                        <div>• **D** (25%): Jumlah Aduan Serupa (Laporan Berulang)</div>
+                        <div>• **V** (20%): Kelengkapan Foto & Peta (Validitas Bukti)</div>
+                        <div>• **T** (15%): Lama Keluhan Tertunda (Waktu Tunggu)</div>
+                        <div>• **R** (10%): Kerawanan Dampak Wilayah (Geoportal)</div>
                       </div>
                     </div>
 
                     <div className="border-t border-slate-100 pt-4 text-[10px] text-slate-400 italic leading-normal">
-                      *Kalkulasi prioritas dilakukan secara langsung di dalam database PostgreSQL melalui query PostGIS + pgvector setiap kali aduan baru masuk.
+                      *Kalkulasi prioritas dilakukan secara langsung di dalam database PostgreSQL melalui query PostGIS + AI Analisis setiap kali aduan baru masuk.
                     </div>
                   </div>
                 </div>
@@ -1305,7 +1393,7 @@ export default function Home() {
 
                   {/* SVG SLA Trend Line Chart */}
                   <div className="mt-8 border-t border-slate-200 pt-6">
-                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Tren Kecepatan Penyelesaian SLA (Hari/Kasus)</span>
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Tren Kecepatan Penyelesaian Dinas (Hari/Kasus)</span>
                     <div className="w-full h-32 relative">
                       <svg className="w-full h-full overflow-visible" viewBox="0 0 400 100" preserveAspectRatio="none">
                         <defs>
@@ -1370,7 +1458,7 @@ export default function Home() {
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <span className="text-xs font-extrabold text-teal-700 block">{dinas.sla}%</span>
-                            <span className="text-[9px] text-slate-400 block font-bold">SLA Kepatuhan</span>
+                            <span className="text-[9px] text-slate-400 block font-bold">Ketepatan Waktu</span>
                           </div>
                           <div className="text-right hidden sm:block">
                             <span className="text-xs font-bold text-slate-700 block">{dinas.time}</span>
@@ -1429,7 +1517,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">1. Warga Melapor (Banjar)</span>
+                    <span className="font-bold">1. Masuk Aduan (Dialek Banjar)</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1439,7 +1527,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">2. Duplikasi (PostGIS + pgvector)</span>
+                    <span className="font-bold">2. Pengabungan Laporan Serupa</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1449,7 +1537,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">3. Antrean Triage Operator</span>
+                    <span className="font-bold">3. Penyaringan Verifikasi Operator</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1459,7 +1547,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">4. Laporan Overdue SLA</span>
+                    <span className="font-bold">4. Alarm Batas Waktu Dinas (Overdue)</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
                 </div>
@@ -1472,7 +1560,7 @@ export default function Home() {
                   Alur Demo Tim
                 </div>
                 <p>
-                  Klik skenario di atas secara berturut-turut untuk menyimulasikan siklus penuh tata kelola keluhan warga secara langsung di hadapan juri.
+                  Klik skenario di atas secara berturut-turut untuk menyimulasikan siklus penuh tata kelola keluhan warga secara langsung.
                 </p>
                 <div className="flex justify-end mt-2 opacity-30 select-none pointer-events-none">
                   {/* Wave and Jukung (boat) subtle layout ASCII/Visual symbol */}

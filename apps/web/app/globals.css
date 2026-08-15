@@ -63,3 +63,26 @@ body {
   border: 1px solid #e2e8f0;
 }
 
+/* Infinite vertical scroll marquee for Social Listening Cards */
+@keyframes verticalMarquee {
+  0% {
+    transform: translateY(0);
+  }
+  100% {
+    transform: translateY(-50%);
+  }
+}
+.animate-marquee-vertical {
+  animation: verticalMarquee 40s linear infinite;
+}
+.animate-marquee-vertical:hover {
+  animation-play-state: paused;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
