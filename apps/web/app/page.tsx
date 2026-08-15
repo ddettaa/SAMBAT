@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { 
   AlertTriangle, CheckCircle, Clock, Compass, FileText, MapPin, 
   Info, RefreshCw, Settings, ShieldAlert, Send, Trash2, User, 
-  Image as ImageIcon, ChevronRight, Plus, Search, Building, Check, Globe
+  Image as ImageIcon, ChevronRight, Plus, Search, Building, Check, Globe, Lock
 } from "lucide-react";
 
 const API_URL = "http://localhost:3001";
@@ -118,6 +118,11 @@ export default function Home() {
   const [dinasList, setDinasList] = useState<Dinas[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [selectedDinas, setSelectedDinas] = useState<string>("d-pupr");
+  
+  // Operator Auth State
+  const [operatorKeyInput, setOperatorKeyInput] = useState("");
+  const [isOperatorLoggedIn, setIsOperatorLoggedIn] = useState(false);
+  const [loginError, setLoginError] = useState("");
   
   // Real-time ticking state for SLA countdowns
   const [currentTime, setCurrentTime] = useState(Date.now());
@@ -903,8 +908,91 @@ export default function Home() {
           )}
 
           {/* TAB 2: OPERATOR DASHBOARD */}
-          {activeTab === "operator" && (
+          {activeTab === "operator" && !isOperatorLoggedIn && (
+            <div className="max-w-md mx-auto my-12 bg-white border border-slate-200 shadow-xl rounded-3xl p-8 relative overflow-hidden bg-sasirangan">
+              <div className="absolute inset-0 bg-white/95 z-0" />
+              <div className="relative z-10 flex flex-col items-center text-center">
+                
+                {/* Lock Icon Pulsing */}
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 shadow-md mb-6 animate-bounce">
+                  <Lock className="h-8 w-8" />
+                </div>
+                
+                <h2 className="text-base font-extrabold text-slate-900 mb-2">Otentikasi Operator SAMBAT</h2>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  Masukkan kunci akses operator untuk memverifikasi aduan masuk, melakukan triage, dan mengelola disposisi dinas.
+                </p>
+
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (operatorKeyInput === KEYS.operator) {
+                      setIsOperatorLoggedIn(true);
+                      setLoginError("");
+                    } else {
+                      setLoginError("Kunci akses salah! Silakan coba lagi.");
+                    }
+                  }}
+                  className="w-full space-y-4"
+                >
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-2 uppercase tracking-wider text-left">Kunci Akses Operator</label>
+                    <input 
+                      type="password" 
+                      value={operatorKeyInput}
+                      onChange={(e) => setOperatorKeyInput(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all text-center font-mono tracking-widest"
+                      placeholder="••••••••••••••"
+                      required
+                    />
+                  </div>
+
+                  {loginError && (
+                    <p className="text-[10px] text-red-600 font-bold bg-red-50 border border-red-100 rounded-lg p-2.5">
+                      {loginError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs shadow-sm shadow-teal-700/20 cursor-pointer"
+                  >
+                    Masuk Ke Sistem
+                  </button>
+                </form>
+
+                <div className="mt-8 border-t border-slate-100 pt-4 w-full">
+                  <span className="text-[9px] text-slate-400 font-medium">
+                    Kunci Demo Lomba: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded font-bold text-slate-600">{KEYS.operator}</code>
+                  </span>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {activeTab === "operator" && isOperatorLoggedIn && (
             <div className="space-y-8 max-w-6xl mx-auto">
+              
+              {/* Dashboard Header with Logout */}
+              <div className="flex items-center justify-between bg-white border border-slate-200 shadow-sm rounded-2xl px-6 py-4">
+                <div>
+                  <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <User className="h-4.5 w-4.5 text-teal-700" />
+                    Manajemen & Verifikasi Triage (Operator)
+                  </h2>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Sesi aktif terverifikasi menggunakan operator_key</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsOperatorLoggedIn(false);
+                    setOperatorKeyInput("");
+                  }}
+                  className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Lock className="h-3.5 w-3.5" /> Kunci Kembali
+                </button>
+              </div>
               
               {/* Stats Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
