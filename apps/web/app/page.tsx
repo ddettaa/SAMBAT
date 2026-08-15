@@ -236,18 +236,18 @@ export default function Home() {
         return;
       }
       
-      // 2. Query OpenStreetMap Nominatim for real-time reverse geocoding
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`, {
-        headers: { "Accept-Language": "id" }
-      });
+      // 2. Query Google Maps Geocoding API for real-time reverse geocoding
+      const apiKey = "AIzaSyDU3JQjZaNsvXE-2UafcTcZxDWCWo5E6hk";
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=id`);
       
       if (res.ok) {
         const data = await res.json();
-        const address = data.address;
-        const road = address.road || address.suburb || address.village || address.neighbourhood || "";
-        const city = address.city || address.municipality || "Banjarmasin";
-        const displayName = road ? `${road}, ${city}` : data.display_name || `Jalan dekat ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        setCustomAddress(displayName);
+        if (data.status === "OK" && data.results && data.results.length > 0) {
+          const formattedAddress = data.results[0].formatted_address;
+          setCustomAddress(formattedAddress);
+        } else {
+          setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        }
       } else {
         setCustomAddress(`Jalan dekat koordinat ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       }
