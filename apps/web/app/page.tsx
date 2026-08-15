@@ -8,11 +8,11 @@ import {
   Image as ImageIcon, ChevronRight, Plus, Search, Building, Check, Globe
 } from "lucide-react";
 
-const API_URL = "http://localhost:3001";
+const API_URL = "";
 const KEYS = {
-  collector: "test-collector-key",
-  operator: "test-operator-key",
-  dinas: "test-dinas-key",
+  collector: "1c4c3df62536624356e1e15e15acb637e5435aee2c8bb7cf",
+  operator: "6e2ec681e704d16e8e05479e8721c00f2851eb8368b57eff",
+  dinas: "b188d6bffe26559476d988a1e6cc5b8b96c702392ede1bcc",
 };
 
 // Dynamically load MapComponent to disable SSR
