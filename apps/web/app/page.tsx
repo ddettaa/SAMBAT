@@ -594,133 +594,133 @@ export default function Home() {
           {activeTab === "warga" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
               
-              {/* Form Lapor */}
-              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan">
+              {/* Social Media Live Feed (X, Instagram, WhatsApp) */}
+              <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan h-[650px]">
                 <div className="absolute inset-0 bg-white/95 z-0" />
-                <div className="relative z-10 flex flex-col h-full justify-between">
-                  <div>
-                    <div className="flex items-center justify-between mb-4">
+                <div className="relative z-10 flex flex-col h-full justify-between overflow-hidden">
+                  
+                  {/* Header Feed */}
+                  <div className="mb-4 flex-shrink-0">
+                    <div className="flex items-center justify-between">
                       <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                        <Send className="h-4 w-4 text-teal-700" />
-                        Aduan Warga Banjarmasin
+                        <Globe className="h-4.5 w-4.5 text-teal-700 animate-pulse" />
+                        Live Social Listening Feed
                       </h2>
-                      <span className="text-[10px] text-slate-400 font-mono italic">Kamus Banjar 3.078 Kata</span>
+                      <span className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Aktif
+                      </span>
                     </div>
-                    
-                    <p className="text-xs text-slate-500 mb-6">
-                      Sampaikan keluhan infrastruktur kota dalam dialek Banjar atau Indonesia. AI akan menormalisasi teks Anda secara real-time.
+                    <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                      Laporan yang ditangkap otomatis oleh AI Agen SAMBAT dari mention dan pesan media sosial warga (X, Instagram, WhatsApp).
                     </p>
-                    
-                    <form onSubmit={handleWargaSubmit} className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Nama Pelapor (Samaran)</label>
-                        <input 
-                          type="text" 
-                          value={wargaPseudo}
-                          onChange={(e) => setWargaPseudo(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Contoh: Warga Pemurus"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Keluhan Anda</label>
-                        <textarea
-                          value={wargaText}
-                          onChange={(e) => setWargaText(e.target.value)}
-                          rows={4}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all resize-none"
-                          placeholder="Tulis keluhan Anda... (Bisa Bahasa Banjar: 'Jalanan di Veteran lubangnya parah banar, kasihan motor amun lewat kada aman...')"
-                          required
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">Unggah Bukti Foto</label>
-                          <div className="flex items-center gap-4">
-                            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-teal-500 transition-all bg-slate-50/50">
-                              <div className="flex flex-col items-center justify-center pt-4 pb-4">
-                                <ImageIcon className="h-6 w-6 text-slate-400 mb-1" />
-                                <p className="text-[10px] text-slate-500 font-bold">Ambil Foto / Upload Gambar</p>
-                                <p className="text-[8px] text-slate-400 mt-0.5">Mendukung Kamera HP & Galeri</p>
-                              </div>
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handlePhotoUpload} 
-                                className="hidden" 
-                              />
-                            </label>
-                            {photoPreview && (
-                              <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">
-                                <img src={photoPreview} className="w-full h-full object-cover" alt="Preview" />
-                                <button 
-                                  type="button"
-                                  onClick={() => {
-                                    setPhotoPreview(null);
-                                    setWargaPhoto("");
-                                  }}
-                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 cursor-pointer"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-bold text-slate-600 mb-2 uppercase tracking-wider">
-                          Alamat Lengkap / Keterangan Lokasi Kejadian
-                        </label>
-                        <input
-                          type="text"
-                          value={customAddress}
-                          onChange={(e) => setCustomAddress(e.target.value)}
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:border-teal-500 focus:bg-white transition-all"
-                          placeholder="Contoh: Jl. Veteran No. 12, Kel. Pemurus Luar"
-                          required
-                        />
-                      </div>
-
-                      <button
-                        type="submit"
-                        disabled={loading || !wargaText}
-                        className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-slate-100 disabled:text-slate-400 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 text-xs mt-4 shadow-sm shadow-teal-700/20 cursor-pointer"
-                      >
-                        {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Kirim Laporan Resmi
-                      </button>
-                    </form>
                   </div>
 
-                  {submittedTicket && (
-                    <div className="mt-6 border border-teal-100 bg-teal-50/50 rounded-xl p-4 flex flex-col gap-2">
-                      <div className="flex items-center gap-2 text-teal-700 text-xs font-bold">
-                        <CheckCircle className="h-4 w-4" />
-                        Laporan Terkirim!
-                      </div>
-                      <p className="text-slate-600 text-[11px]">Salin ID Tiket untuk memantau status pengerjaan oleh Dinas:</p>
-                      <div className="bg-white rounded border border-slate-200 px-3 py-2 flex items-center justify-between mt-1">
-                        <code className="text-xs text-slate-800 font-mono font-bold">{submittedTicket.id}</code>
-                        <button 
-                          onClick={() => {
-                            setTrackId(submittedTicket.id);
-                            setSubmittedTicket(null);
-                          }}
-                          className="text-teal-700 hover:underline text-xs flex items-center gap-1 font-bold cursor-pointer"
-                        >
-                          Lacak Sekarang <ChevronRight className="h-3 w-3" />
-                        </button>
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
-                        <span>*Simpan Token Konfirmasi Anda:</span>
-                        <code className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 font-bold text-amber-600">{submittedTicket.token}</code>
-                      </div>
+                  {/* Marquee Vertical Scrolling Container */}
+                  <div className="flex-1 overflow-hidden relative border border-slate-100 rounded-xl bg-slate-50/50 p-2">
+                    {/* Top/Bottom Fade effects for premium layout */}
+                    <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-slate-100/90 to-transparent z-20 pointer-events-none" />
+                    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-100/90 to-transparent z-20 pointer-events-none" />
+
+                    <div className="h-full overflow-hidden relative">
+                      {reports.length > 0 ? (
+                        <div className="space-y-4 animate-marquee-vertical absolute w-full">
+                          {/* Duplicate items to achieve infinite loop */}
+                          {[...reports, ...reports, ...reports].map((report, idx) => {
+                            const name = report.reporter_pseudo || "Warga Banjarmasin";
+                            const handle = `@${name.toLowerCase().replace(/\s+/g, "_")}`;
+                            
+                            return (
+                              <div 
+                                key={`${report.id}-${idx}`}
+                                onClick={async () => {
+                                  setTrackId(report.id);
+                                  // Fetch timeline manually for instant update
+                                  try {
+                                    const res = await fetch(`${API_URL}/api/reports/${report.id}`, {
+                                      headers: { "x-api-key": KEYS.operator }
+                                    });
+                                    if (res.ok) {
+                                      const data = await res.json();
+                                      setTrackedReport(data);
+                                      setTrackedTimeline(data.timeline || []);
+                                    }
+                                  } catch (e) {
+                                    console.error(e);
+                                  }
+                                }}
+                                className="bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-500 shadow-sm transition-all cursor-pointer hover:shadow-md relative overflow-hidden group pointer-events-auto"
+                              >
+                                <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-600 to-sky-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left" />
+                                
+                                <div className="flex gap-3">
+                                  {/* Avatar using dicebear */}
+                                  <img 
+                                    src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}`} 
+                                    className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 flex-shrink-0"
+                                    alt="Avatar" 
+                                  />
+
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <span className="font-extrabold text-slate-900 text-xs truncate">
+                                          {name}
+                                        </span>
+                                        <span className="text-[10px] text-slate-400 font-medium ml-1.5">{handle}</span>
+                                      </div>
+                                      <span className="text-[9px] text-slate-400 font-mono">
+                                        {new Date(report.created_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                                      </span>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full text-white ${
+                                        report.source === "x" ? "bg-slate-900" :
+                                        report.source === "whatsapp" ? "bg-emerald-500" :
+                                        "bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-500"
+                                      }`}>
+                                        {report.source === "x" ? "X / TWITTER" : report.source.toUpperCase()}
+                                      </span>
+                                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase border ${getCategoryBadgeClass(report.category)}`}>
+                                        {report.category}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-xs text-slate-800 font-semibold mt-2.5 leading-relaxed">
+                                      {report.text_original}
+                                    </p>
+
+                                    {report.text_normalized && report.text_normalized !== report.text_original && (
+                                      <div className="mt-2 p-2 bg-teal-50/40 border border-teal-100/50 rounded-lg text-[10px] text-slate-600 font-medium italic">
+                                        <span className="text-teal-700 font-extrabold uppercase not-italic block text-[8px] tracking-wider mb-0.5">Normalized (AI):</span>
+                                        "{report.text_normalized}"
+                                      </div>
+                                    )}
+                                    
+                                    <div className="mt-3 flex justify-between items-center text-[10px] text-slate-400">
+                                      <span>ID: <code className="font-mono font-bold text-slate-600">{report.id}</code></span>
+                                      <span className="text-teal-700 font-bold group-hover:underline flex items-center gap-0.5">
+                                        Lacak <ChevronRight className="h-3.5 w-3.5" />
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-center py-24 text-slate-400 text-xs">Belum ada aduan masuk.</div>
+                      )}
                     </div>
-                  )}
+
+                  </div>
+
+                  <div className="mt-4 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-100 pt-3 flex-shrink-0 font-medium">
+                    <span>*Klik aduan untuk melacak perjalanan penanganannya secara langsung.</span>
+                    <span className="font-mono text-teal-700 font-bold">🛶 sambat.bjm</span>
+                  </div>
+
                 </div>
               </div>
 

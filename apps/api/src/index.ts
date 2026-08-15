@@ -329,11 +329,11 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
 app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
   const body = await c.req.json().catch(() => null);
   const scenario = body?.scenario || "banjar";
-  
+
   if (scenario === "banjar") {
     const res = await intake({
       text: "Selokan di muka rumah ulun mampet banar, mun hujan lebat banyu naik.",
-      source: "web",
+      source: "x",
       latitude: -3.342,
       longitude: 114.583,
       reporterPseudo: "Ulun Banjar",
@@ -352,7 +352,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
     for (const r of reports) {
       const res = await intake({
         text: r.text,
-        source: "web",
+        source: "x",
         latitude: r.lat,
         longitude: r.lng,
         reporterPseudo: r.pseudo,
@@ -377,7 +377,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
   if (scenario === "sla_escalated") {
     const res = await intake({
       text: "Lampu jalan mati dekat simpang empat pramuka",
-      source: "web",
+      source: "x",
       latitude: -3.328,
       longitude: 114.615,
       reporterPseudo: "Warga Pramuka",
@@ -388,7 +388,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       const reportId = res.report.id;
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
       const twoDaysAgo = new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString();
-      await sql`UPDATE reports SET created_at = ${threeDaysAgo}, sla_due = ${twoDaysAgo}, status = diteruskan, dinas_id = d-dishub WHERE id = ${reportId}`;
+      await sql`UPDATE reports SET created_at = ${threeDaysAgo}, sla_due = ${twoDaysAgo}, status = 'diteruskan', dinas_id = 'd-dishub' WHERE id = ${reportId}`;
       await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: reportId, status: "diteruskan", note: "force route for SLA test", actor: "operator", created_at: threeDaysAgo })}`;
     }
     return c.json(res);
