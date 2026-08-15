@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Globe } from "lucide-react";
+import { ChevronRight, Globe, Sailboat } from "lucide-react";
 import { getCategoryBadgeClass } from "@/lib/utils";
 import type { Report } from "@/lib/types";
 
@@ -146,7 +146,9 @@ export default function SocialFeed({ reports, onSelectReport }: SocialFeedProps)
           <span>
             *Klik aduan untuk melacak perjalanan penanganannya secara langsung.
           </span>
-          <span className="font-mono text-teal-700 font-bold">🛶 sambat.bjm</span>
+          <span className="font-mono text-teal-700 font-bold flex items-center gap-1">
+            <Sailboat className="h-3.5 w-3.5" /> sambat.bjm
+          </span>
         </div>
       </div>
     </div>

@@ -1,12 +1,12 @@
 "use client";
 
-import { Compass } from "lucide-react";
+import { BarChart3, Building2, Compass, Megaphone, ShieldCheck } from "lucide-react";
 
 export const TABS = [
-  { id: "warga", label: "📢 Portal Warga" },
-  { id: "operator", label: "🛡️ Dasbor Operator" },
-  { id: "dinas", label: "🏢 Tugas Dinas" },
-  { id: "transparansi", label: "📊 Transparansi Publik" },
+  { id: "warga", label: "Portal Warga", icon: Megaphone },
+  { id: "operator", label: "Dasbor Operator", icon: ShieldCheck },
+  { id: "dinas", label: "Tugas Dinas", icon: Building2 },
+  { id: "transparansi", label: "Transparansi Publik", icon: BarChart3 },
 ] as const;
 
 interface HeaderProps {
@@ -41,12 +41,13 @@ export default function Header({ activeTab, onTabChange }: HeaderProps) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === tab.id
                   ? "bg-white text-teal-700 shadow-sm border border-slate-200"
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
+              <tab.icon className="h-3.5 w-3.5" />
               {tab.label}
             </button>
           ))}

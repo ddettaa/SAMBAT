@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { sql, migrate, audit, id, tokenHash, token } from "./db";
 import { PILOT_CONFIG, calculatePriority } from "./config";
 import { requireRoles, actor, keyHash } from "./auth";
@@ -66,7 +67,7 @@ app.get("/api/ready", async (c) => {
 // ─── intake ──────────────────────────────────────────────────
 app.post("/api/reports", requireRoles("collector", "operator"), async (c) => {
   const body = await c.req.json().catch(() => null);
-  const result = await intake(body || {}, c.get("actor").name);
+  const result = await intake(body || {}, actor(c)!.name);
   if (!result.ok) return c.json({ error: result.error }, result.status);
   return c.json({ ...result.report, confirmationToken: result.confirmationToken, priority_detail: result.priorityDetail }, 201);
 });
@@ -110,14 +111,14 @@ app.post("/api/reports/:id/status", requireRoles("operator", "dinas"), async (c)
   if (!TRANSITIONS[row.status]?.includes(next)) {
     return c.json({ error: `illegal transition ${row.status} → ${next}`, allowed: TRANSITIONS[row.status] }, 409);
   }
-  const who = c.get("actor").name;
+  const who = actor(c)!.name;
   if (body?.imageAfter) {
     await sql`UPDATE reports SET status = ${next}, image_after = ${body.imageAfter}, updated_at = now() WHERE id = ${c.req.param("id")}`;
   } else {
     await sql`UPDATE reports SET status = ${next}, updated_at = now() WHERE id = ${c.req.param("id")}`;
   }
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: next, note: body?.note || null, actor: who })}`;
-  await audit("status", "report", c.req.param("id"), who, { from: row.status, to: next });
+  await audit("status", "report", c.req.param("id")!, who, { from: row.status, to: next });
   return c.json({ id: c.req.param("id"), status: next });
 });
 
@@ -136,8 +137,8 @@ app.post("/api/reports/:id/route", requireRoles("operator"), async (c) => {
   const slaHours = PILOT_CONFIG.slaHours[category as keyof typeof PILOT_CONFIG.slaHours] ?? 72;
   const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
   await sql`UPDATE reports SET dinas_id = ${dinasId}, sla_due = ${slaDue}, status = 'diteruskan', updated_at = now() WHERE id = ${c.req.param("id")}`;
-  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `routed ke ${dinasId} (SLA ${slaHours}h)`, actor: c.get("actor").name })}`;
-  await audit("route", "report", c.req.param("id"), c.get("actor").name, { dinasId, slaHours });
+  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `routed ke ${dinasId} (SLA ${slaHours}h)`, actor: actor(c)!.name })}`;
+  await audit("route", "report", c.req.param("id")!, actor(c)!.name, { dinasId, slaHours });
   return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
 });
 
@@ -151,7 +152,7 @@ app.post("/api/reports/:id/auto-route", requireRoles("operator"), async (c) => {
   const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
   await sql`UPDATE reports SET dinas_id = ${dinasId}, sla_due = ${slaDue}, status = 'diteruskan', updated_at = now() WHERE id = ${c.req.param("id")}`;
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `auto-route ${report.category} → ${dinasId}`, actor: "ai" })}`;
-  await audit("auto-route", "report", c.req.param("id"), c.get("actor").name, { dinasId });
+  await audit("auto-route", "report", c.req.param("id")!, actor(c)!.name, { dinasId });
   return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
 });
 
@@ -217,7 +218,7 @@ app.post("/api/auth/keys/:id/revoke", requireRoles("operator"), async (c) => {
   const who = actor(c)?.name || "operator";
   const result = await sql`UPDATE api_keys SET revoked_at = now() WHERE id = ${c.req.param("id")} AND revoked_at IS NULL RETURNING id`;
   if (!result.length) return c.json({ error: "key not found or already revoked" }, 404);
-  await audit("key_revoked", "api_key", c.req.param("id"), who);
+  await audit("key_revoked", "api_key", c.req.param("id")!, who);
   return c.json({ id: c.req.param("id"), revoked: true });
 });
 
@@ -226,7 +227,7 @@ app.post("/api/collector/webhook", requireRoles("collector"), async (c) => {
   const body = await c.req.json().catch(() => null);
   const { enqueueWebhook } = await import("./collector");
   const result = await enqueueWebhook(body || {});
-  if (!result.ok) return c.json({ error: result.error }, result.status);
+  if (!result.ok) return c.json({ error: result.error }, result.status as ContentfulStatusCode);
   return c.json(result.report, 202);
 });
 

@@ -1,4 +1,5 @@
 import { sql, id, token, tokenHash, audit } from "./db";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { PILOT_CONFIG, calculatePriority } from "./config";
 import { inCityBounds, resolveAdmin, floodUrgency, riskScore } from "./geo";
 import { createHash } from "crypto";
@@ -21,7 +22,7 @@ export function priorityFor(ai: any, reportCount: number, hoursOpen: number, has
 
 export type IntakeResult =
   | { ok: true; report: any; confirmationToken: string; priorityDetail: any; riskDetail?: any }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: ContentfulStatusCode; error: string };
 
 export async function intake(body: any, actorName: string): Promise<IntakeResult> {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
@@ -190,7 +191,7 @@ async function aiClassify(text: string) {
       signal: AbortSignal.timeout(60_000),
     });
     if (!res.ok) return { failure_reason: `ai_http_${res.status}` };
-    const data = await res.json();
+    const data = (await res.json()) as any;
     return { ...data, failure_reason: null };
   } catch (error: any) {
     return { failure_reason: String(error?.name || "ai_unreachable") };
@@ -206,8 +207,8 @@ async function aiEmbed(text: string): Promise<number[] | null> {
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return null;
-    const data = await res.json();
-    return data.embedding || null;
+    const data = (await res.json()) as { embedding?: number[] } | null;
+    return data?.embedding || null;
   } catch (error) {
     return null;
   }

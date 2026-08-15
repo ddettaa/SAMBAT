@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Info, RefreshCw, Settings, Trash2 } from "lucide-react";
+import { ChevronRight, Info, RefreshCw, Sailboat, Settings, Trash2, Waves } from "lucide-react";
 import { demoReset, demoSimulate } from "@/lib/api";
 
 interface DemoControlCenterProps {
@@ -115,9 +115,11 @@ export default function DemoControlCenter({
                 siklus penuh tata kelola keluhan warga secara langsung.
               </p>
               <div className="flex justify-end mt-2 opacity-30 select-none pointer-events-none">
-                {/* Wave and Jukung (boat) subtle layout ASCII/Visual symbol */}
-                <span className="font-mono text-xs text-teal-700">
-                  🛶 ~~~ ~~~
+                {/* Wave and Jukung (boat) subtle visual symbol */}
+                <span className="flex items-center gap-1 text-teal-700">
+                  <Sailboat className="h-4 w-4" />
+                  <Waves className="h-4 w-4" />
+                  <Waves className="h-4 w-4" />
                 </span>
               </div>
             </div>
