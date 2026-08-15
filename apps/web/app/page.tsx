@@ -524,7 +524,7 @@ export default function Home() {
     if (isOverdue) {
       return (
         <span className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-2.5 py-1 rounded-full font-bold flex items-center gap-1">
-          <Clock className="h-3 w-3" /> SLA Terlewat ({countdownStr})
+          <Clock className="h-3 w-3" /> Waktu Terlewati ({countdownStr})
         </span>
       );
     }
@@ -537,7 +537,7 @@ export default function Home() {
           ? "bg-amber-50 text-amber-600 border-amber-200 animate-pulse" 
           : "bg-teal-50 text-teal-700 border-teal-200"
       }`}>
-        <Clock className="h-3 w-3" /> SLA: {countdownStr}
+        <Clock className="h-3 w-3" /> Target Waktu: {countdownStr}
       </span>
     );
   };
@@ -697,7 +697,7 @@ export default function Home() {
 
                                     {report.text_normalized && report.text_normalized !== report.text_original && (
                                       <div className="mt-2 p-2 bg-teal-50/40 border border-teal-100/50 rounded-lg text-[10px] text-slate-600 font-medium italic">
-                                        <span className="text-teal-700 font-extrabold uppercase not-italic block text-[8px] tracking-wider mb-0.5">Normalized (AI):</span>
+                                        <span className="text-teal-700 font-extrabold uppercase not-italic block text-[8px] tracking-wider mb-0.5">Terjemahan AI:</span>
                                         "{report.text_normalized}"
                                       </div>
                                     )}
@@ -807,7 +807,7 @@ export default function Home() {
                         {trackedReport.text_normalized && trackedReport.text_normalized !== trackedReport.text_original && (
                           <div>
                             <span className="block text-[9px] font-bold text-teal-700 uppercase tracking-wider flex items-center gap-1">
-                              <Check className="h-3 w-3" /> Auto-Normalized (Indonesia Baku)
+                              <Check className="h-3 w-3" /> Hasil Terjemahan Otomatis (AI)
                             </span>
                             <p className="text-xs text-slate-800 mt-0.5 font-medium">"{trackedReport.text_normalized}"</p>
                           </div>
@@ -841,11 +841,11 @@ export default function Home() {
                           </div>
                           <div className="font-mono mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
                           <div className="space-y-1 text-slate-300 font-mono text-[9px]">
-                            <div>• U (Urgensi AI) = {trackedReport.priority_detail?.U || 25} (Bobot 30%)</div>
-                            <div>• D (Duplikasi Laporan) = {trackedReport.priority_detail?.D || 25} (Bobot 25%)</div>
+                            <div>• U (Bahaya Keamanan) = {trackedReport.priority_detail?.U || 25} (Bobot 30%)</div>
+                            <div>• D (Laporan Serupa) = {trackedReport.priority_detail?.D || 25} (Bobot 25%)</div>
                             <div>• V (Kekuatan Bukti) = {trackedReport.priority_detail?.V || 0} (Bobot 20%)</div>
                             <div>• T (Waktu Tunggu) = {trackedReport.priority_detail?.T || 0} (Bobot 15%)</div>
-                            <div>• R (Radius Dampak) = {trackedReport.priority_detail?.R || 25} (Bobot 10%)</div>
+                            <div>• R (Kerawanan Daerah) = {trackedReport.priority_detail?.R || 25} (Bobot 10%)</div>
                           </div>
                         </div>
                       </div>
@@ -979,7 +979,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
                     <User className="h-4.5 w-4.5 text-teal-700" />
-                    Manajemen & Verifikasi Triage (Operator)
+                    Verifikasi & Penyaringan Laporan (Operator)
                   </h2>
                   <p className="text-[10px] text-slate-500 mt-0.5">Sesi aktif terverifikasi menggunakan operator_key</p>
                 </div>
@@ -998,7 +998,7 @@ export default function Home() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
                   { label: "Total Pengaduan", val: reports.length, icon: FileText, color: "text-teal-700", bg: "bg-teal-50" },
-                  { label: "Review Ambigu AI", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
+                  { label: "Aduan Perlu Verifikasi", val: reports.filter(r => typeof r.confidence === "number" && r.confidence < 0.8 && r.status === "terdeteksi").length, icon: AlertTriangle, color: "text-amber-600", bg: "bg-amber-50" },
                   { label: "Kasus Kolektif Aktif", val: cases.length, icon: Building, color: "text-sky-600", bg: "bg-sky-50" },
                   { label: "Penyelesaian Selesai", val: reports.filter(r => r.status === "selesai").length, icon: CheckCircle, color: "text-emerald-700", bg: "bg-emerald-50" }
                 ].map((stat, idx) => (
@@ -1020,7 +1020,7 @@ export default function Home() {
                 <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 lg:col-span-2">
                   <h3 className="text-sm font-extrabold text-slate-900 mb-4 flex items-center gap-2">
                     <ShieldAlert className="h-4 w-4 text-amber-600" />
-                    Triage & Verifikasi AI (Laporan Ambigu)
+                    Penyaringan & Verifikasi AI (Aduan Ambigu)
                   </h3>
 
                   <div className="space-y-3 overflow-y-auto max-h-[450px] pr-2">
@@ -1043,7 +1043,7 @@ export default function Home() {
                           <div className="flex items-center justify-between text-[10px] mb-2">
                             <span className="font-mono text-slate-500 font-bold">{report.id}</span>
                             <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
-                              Confidence: {typeof report.confidence === "number" ? Math.round(report.confidence * 100) : 0}%
+                              Tingkat Akurasi AI: {typeof report.confidence === "number" ? Math.round(report.confidence * 100) : 0}%
                             </span>
                           </div>
                           
@@ -1051,7 +1051,7 @@ export default function Home() {
                           <div className="space-y-1.5 mb-3">
                             <p className="text-xs text-slate-500 italic">Banjar: "{report.text_original}"</p>
                             {report.text_normalized && report.text_normalized !== report.text_original && (
-                              <p className="text-xs text-slate-800 font-bold">Indo: "{report.text_normalized}"</p>
+                              <p className="text-xs text-slate-800 font-bold">Terjemahan: "{report.text_normalized}"</p>
                             )}
                           </div>
                           
@@ -1296,7 +1296,7 @@ export default function Home() {
                   { label: "Total Keluhan Warga", val: reports.length, desc: "Seluruh aduan terdaftar", color: "text-teal-700" },
                   { label: "Sedang Dikerjakan Dinas", val: reports.filter(r => ["diteruskan", "dikerjakan"].includes(r.status)).length, desc: "Penugasan aktif OPD", color: "text-amber-600" },
                   { label: "Selesai Penanganan", val: reports.filter(r => r.status === "selesai").length, desc: "Dikonfirmasi warga", color: "text-emerald-700" },
-                  { label: "SLA Compliance Rate", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "100%", desc: "Respons sesuai target waktu", color: "text-sky-700" }
+                  { label: "Ketepatan Waktu Dinas", val: reports.length > 0 ? `${Math.round((reports.filter(r => r.status === "selesai" || (r.sla_due && new Date(r.sla_due) > new Date())).length / reports.length) * 100)}%` : "100%", desc: "Respons sesuai target waktu", color: "text-sky-700" }
                 ].map((metric, idx) => (
                   <div key={idx} className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5">
                     <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">{metric.label}</span>
@@ -1340,16 +1340,16 @@ export default function Home() {
 
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 font-mono text-[10px] text-slate-600 space-y-2">
                         <div className="font-extrabold text-slate-900 text-xs border-b border-slate-200 pb-1.5 mb-2">P = 30U + 25D + 20V + 15T + 10R</div>
-                        <div>• **U** (30%): Urgensi risiko keselamatan</div>
-                        <div>• **D** (25%): Jumlah laporan warga yang sama</div>
-                        <div>• **V** (20%): Validitas bukti foto & lokasi</div>
-                        <div>• **T** (15%): Lama waktu tunda pengerjaan</div>
-                        <div>• **R** (10%): Radius dampak banjir (Geoportal)</div>
+                        <div>• **U** (30%): Tingkat Bahaya Keamanan (Urgensi)</div>
+                        <div>• **D** (25%): Jumlah Aduan Serupa (Laporan Berulang)</div>
+                        <div>• **V** (20%): Kelengkapan Foto & Peta (Validitas Bukti)</div>
+                        <div>• **T** (15%): Lama Keluhan Tertunda (Waktu Tunggu)</div>
+                        <div>• **R** (10%): Kerawanan Dampak Wilayah (Geoportal)</div>
                       </div>
                     </div>
 
                     <div className="border-t border-slate-100 pt-4 text-[10px] text-slate-400 italic leading-normal">
-                      *Kalkulasi prioritas dilakukan secara langsung di dalam database PostgreSQL melalui query PostGIS + pgvector setiap kali aduan baru masuk.
+                      *Kalkulasi prioritas dilakukan secara langsung di dalam database PostgreSQL melalui query PostGIS + AI Analisis setiap kali aduan baru masuk.
                     </div>
                   </div>
                 </div>
@@ -1393,7 +1393,7 @@ export default function Home() {
 
                   {/* SVG SLA Trend Line Chart */}
                   <div className="mt-8 border-t border-slate-200 pt-6">
-                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Tren Kecepatan Penyelesaian SLA (Hari/Kasus)</span>
+                    <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Tren Kecepatan Penyelesaian Dinas (Hari/Kasus)</span>
                     <div className="w-full h-32 relative">
                       <svg className="w-full h-full overflow-visible" viewBox="0 0 400 100" preserveAspectRatio="none">
                         <defs>
@@ -1458,7 +1458,7 @@ export default function Home() {
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <span className="text-xs font-extrabold text-teal-700 block">{dinas.sla}%</span>
-                            <span className="text-[9px] text-slate-400 block font-bold">SLA Kepatuhan</span>
+                            <span className="text-[9px] text-slate-400 block font-bold">Ketepatan Waktu</span>
                           </div>
                           <div className="text-right hidden sm:block">
                             <span className="text-xs font-bold text-slate-700 block">{dinas.time}</span>
@@ -1517,7 +1517,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">1. Warga Melapor (Banjar)</span>
+                    <span className="font-bold">1. Masuk Aduan (Dialek Banjar)</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1527,7 +1527,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">2. Duplikasi (PostGIS + pgvector)</span>
+                    <span className="font-bold">2. Pengabungan Laporan Serupa</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1537,7 +1537,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">3. Antrean Triage Operator</span>
+                    <span className="font-bold">3. Penyaringan Verifikasi Operator</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
 
@@ -1547,7 +1547,7 @@ export default function Home() {
                     disabled={simulating !== null}
                     className="w-full bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs py-2.5 px-4 rounded-xl text-left transition-all border border-slate-200 flex items-center justify-between cursor-pointer disabled:opacity-50"
                   >
-                    <span className="font-bold">4. Laporan Overdue SLA</span>
+                    <span className="font-bold">4. Alarm Batas Waktu Dinas (Overdue)</span>
                     <ChevronRight className="h-3 w-3 text-slate-400" />
                   </button>
                 </div>
@@ -1560,7 +1560,7 @@ export default function Home() {
                   Alur Demo Tim
                 </div>
                 <p>
-                  Klik skenario di atas secara berturut-turut untuk menyimulasikan siklus penuh tata kelola keluhan warga secara langsung di hadapan juri.
+                  Klik skenario di atas secara berturut-turut untuk menyimulasikan siklus penuh tata kelola keluhan warga secara langsung.
                 </p>
                 <div className="flex justify-end mt-2 opacity-30 select-none pointer-events-none">
                   {/* Wave and Jukung (boat) subtle layout ASCII/Visual symbol */}
