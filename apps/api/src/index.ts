@@ -301,9 +301,14 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
   
   // Create default mock data so it is not empty on first demo
   const list = [
-    { text: "Ada tumpukan sampah besar di dekat TPS Basirih, bau busuk sekali.", category: "sampah", lat: -3.345, lng: 114.585, source: "web", reporterPseudo: "Warga Basirih" },
-    { text: "Jalan Veteran lubangnya makin parah dan dalam, bahaya buat motor.", category: "jalan", lat: -3.321, lng: 114.592, source: "web", reporterPseudo: "Pengendara" },
-    { text: "PJU padam total di sekitar jembatan Mantuil, gelap sekali kalau malam.", category: "lampu", lat: -3.355, lng: 114.602, source: "x", reporterPseudo: "mantuil_bjm" }
+    { text: "Hujan lebat sedikit saja langsung banjir rob di daerah Lambung Mangkurat min, saluran air mampet tersumbat sampah plastik barataan. @sambat_bjm", category: "drainase", lat: -3.3244, lng: 114.5912, source: "x", reporterPseudo: "Ahmad Fadillah" },
+    { text: "TPS di Jalan Kuripan sampahnya meluber sampai ke jalan raya. Bau busuk banar mengganggu pejalan kaki dan bikin macet. Tolong dibersihkan @sambat_bjm", category: "sampah", lat: -3.3221, lng: 114.5945, source: "x", reporterPseudo: "Siti Rahmah" },
+    { text: "Jalan di Jembatan Pasar Lama banyak nang bolong ganal, membahayakan pengendara roda dua mun handak lewat malam hari. @sambat_bjm", category: "jalan", lat: -3.3182, lng: 114.5891, source: "x", reporterPseudo: "Udin Baso" },
+    { text: "Lampu jalan (PJU) sepanjang Jl. Hasan Basri Kayutangi dekat kampus ULM banyak nang mati. Gelap gulita mun malam, rawan kejahatan. @sambat_bjm", category: "lampu", lat: -3.2982, lng: 114.5862, source: "x", reporterPseudo: "Rian Hidayat" },
+    { text: "Banyu meluap di Siring Jl. S. Parman gara-gara parit drainase mampet total ketutup tanah dan lumpur tebal. Tolong PUPR ditengok. @sambat_bjm", category: "drainase", lat: -3.3134, lng: 114.5821, source: "x", reporterPseudo: "Lana Kalsel" },
+    { text: "Jalan Pramuka dekat terminal KM 6 jalannya retak dan berlubang parah. Sering bikin macet panjang pas jam pulang kantor. @sambat_bjm", category: "jalan", lat: -3.3262, lng: 114.6111, source: "x", reporterPseudo: "Hendra Wijaya" },
+    { text: "Ada tumpukan sampah liar besar di pinggir jalan dekat TPS Basirih, baunya menyengat banar sampai ke pemukiman warga terdekat @sambat_bjm", category: "sampah", lat: -3.3450, lng: 114.5850, source: "x", reporterPseudo: "Yusuf Amin" },
+    { text: "Lampu PJU padam total di kawasan Jembatan Mantuil Ujung. Gelap banar mun malam hari, bahaya gasan warga nang bulik bagawi. @sambat_bjm", category: "lampu", lat: -3.3550, lng: 114.6020, source: "x", reporterPseudo: "Dewi Lestari" }
   ];
 
   const mockImages: Record<string, string> = {
@@ -324,7 +329,7 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
     }, "system-demo");
   }
 
-  return c.json({ ok: true, message: "Database cleared and reseeded with 3 active reports" });
+  return c.json({ ok: true, message: "Database cleared and reseeded with 8 active reports" });
 });
 
 app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
