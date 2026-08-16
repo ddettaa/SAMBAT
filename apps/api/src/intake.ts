@@ -1,6 +1,6 @@
 import { sql, id, token, tokenHash, audit } from "./db";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { PILOT_CONFIG, calculatePriority } from "./config";
+import { DINAS_BY_CATEGORY, PILOT_CONFIG, calculatePriority } from "./config";
 import { inCityBounds, resolveAdmin, floodUrgency, riskScore } from "./geo";
 import { createHash } from "crypto";
 import banjarDict from "../../ai/banjar_dict.json";
@@ -168,6 +168,18 @@ export async function intake(body: any, actorName: string): Promise<IntakeResult
             await tx`UPDATE reports SET status = 'terverifikasi', updated_at = now() WHERE id = ${reportId} AND status = 'terdeteksi'`;
           }
         }
+      }
+
+      // Auto-route: AI yang yakin (confidence >= ambas review) langsung meneruskan
+      // laporan ke dinas penanggung jawab — operator hanya menyaring aduan ambigu.
+      const autoDinasId = DINAS_BY_CATEGORY[category];
+      const isHighConfidence = typeof ai?.confidence === "number" && ai.confidence >= PILOT_CONFIG.reviewConfidence;
+      if (autoDinasId && isHighConfidence) {
+        const slaHours = PILOT_CONFIG.slaHours[category as keyof typeof PILOT_CONFIG.slaHours] ?? 72;
+        const slaDue = new Date(Date.now() + slaHours * 3600 * 1000).toISOString();
+        await tx`UPDATE reports SET dinas_id = ${autoDinasId}, sla_due = ${slaDue}, status = 'diteruskan', updated_at = now() WHERE id = ${rid}`;
+        await tx`INSERT INTO sla_events ${tx({ id: id("sla"), report_id: rid, status: "diteruskan", note: `auto-route ${category} → ${autoDinasId} (AI ${Math.round((ai?.confidence ?? 0) * 100)}%)`, actor: "ai" })}`;
+        await tx`INSERT INTO audit_log ${tx({ id: id("audit"), action: "auto-route", entity_type: "report", entity_id: rid, actor: "ai", detail: JSON.stringify({ dinasId: autoDinasId, slaHours }) })}`;
       }
     });
   } catch (error: any) {

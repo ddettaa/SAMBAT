@@ -1,7 +1,10 @@
 "use client";
 
-import { ChevronRight, Globe, Sailboat } from "lucide-react";
-import { getCategoryBadgeClass } from "@/lib/utils";
+import { ExternalLink } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { getCategoryBadgeClass, getSourceUrl } from "@/lib/utils";
 import type { Report } from "@/lib/types";
 
 interface SocialFeedProps {
@@ -9,148 +12,153 @@ interface SocialFeedProps {
   onSelectReport: (reportId: string) => void;
 }
 
-// Live Social Listening Feed — marquee vertikal aduan dari media sosial
+const SOURCE_LABEL: Record<string, string> = {
+  x: "X / Twitter",
+  instagram: "Instagram",
+  whatsapp: "WhatsApp",
+  web: "Web",
+};
+
+// Aliran aduan live — baris editorial divide-y (tanpa card),
+// marquee vertikal adalah satu-satunya elemen bergerak di halaman.
+// Setiap baris menampilkan avatar, badge kategori, dan link ke postingan asli.
 export default function SocialFeed({ reports, onSelectReport }: SocialFeedProps) {
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 flex flex-col justify-between relative overflow-hidden bg-sasirangan h-[650px]">
-      <div className="absolute inset-0 bg-white/95 z-0" />
-      <div className="relative z-10 flex flex-col h-full justify-between overflow-hidden">
-        {/* Header Feed */}
-        <div className="mb-4 flex-shrink-0">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-              <Globe className="h-4.5 w-4.5 text-teal-700 animate-pulse" />
-              Live Social Listening Feed
-            </h2>
-            <span className="flex items-center gap-1.5 text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-100 animate-pulse">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>{" "}
-              Aktif
+    <div>
+      <div className="flex items-end justify-between gap-4 pb-4">
+        <div>
+          <h2 className="flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-slate-900">
+            Aduan terkini
+            <span className="relative flex h-2 w-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-          </div>
-          <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-            Laporan yang ditangkap otomatis oleh AI Agen SAMBAT dari mention dan
-            pesan media sosial warga (X, Instagram, WhatsApp).
+          </h2>
+          <p className="mt-1.5 max-w-[55ch] text-sm leading-relaxed text-slate-500">
+            Ditangkap otomatis oleh AI dari mention media sosial warga — X,
+            Instagram, WhatsApp.
           </p>
         </div>
+        <Badge variant="outline" className="shrink-0 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 border-emerald-200 bg-emerald-50">
+          Live
+        </Badge>
+      </div>
 
-        {/* Marquee Vertical Scrolling Container */}
-        <div className="flex-1 overflow-hidden relative border border-slate-100 rounded-xl bg-slate-50/50 p-2">
-          {/* Top/Bottom Fade effects for premium layout */}
-          <div className="absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-slate-100/90 to-transparent z-20 pointer-events-none" />
-          <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-100/90 to-transparent z-20 pointer-events-none" />
+      <Separator className="mb-2" />
 
-          <div className="h-full overflow-hidden relative">
-            {reports.length > 0 ? (
-              <div className="space-y-4 animate-marquee-vertical absolute w-full">
-                {/* Duplicate items to achieve infinite loop */}
-                {[...reports, ...reports, ...reports].map((report, idx) => {
-                  const name = report.reporter_pseudo || "Warga Banjarmasin";
-                  const handle = `@${name.toLowerCase().replace(/\s+/g, "_")}`;
+      {/* Viewport marquee dengan fade atas/bawah */}
+      <div className="relative h-[560px] overflow-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-10 bg-gradient-to-b from-white to-transparent" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-10 bg-gradient-to-t from-white to-transparent" />
 
-                  return (
-                    <div
-                      key={`${report.id}-${idx}`}
-                      onClick={() => onSelectReport(report.id)}
-                      className="bg-white border border-slate-200 rounded-xl p-4 hover:border-teal-500 shadow-sm transition-all cursor-pointer hover:shadow-md relative overflow-hidden group pointer-events-auto"
-                    >
-                      <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-600 to-sky-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left" />
+        {reports.length > 0 ? (
+          <div className="animate-marquee-vertical absolute w-full">
+            {/* Item digandakan untuk loop tak berujung */}
+            {[...reports, ...reports, ...reports].map((report, idx) => {
+              const name = report.reporter_pseudo || "Warga Banjarmasin";
+              const sourceUrl = getSourceUrl(report.source, report.source_ref);
+              const sourceLabel = SOURCE_LABEL[report.source] ?? report.source;
 
-                      <div className="flex gap-3">
-                        {/* Avatar using dicebear */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}`}
-                          className="w-9 h-9 rounded-full border border-slate-200 bg-slate-50 flex-shrink-0"
-                          alt="Avatar"
-                        />
+              return (
+                <button
+                  key={`${report.id}-${idx}`}
+                  onClick={() => onSelectReport(report.id)}
+                  className="group block w-full cursor-pointer border-b border-slate-200 px-2 py-5 text-left transition-colors hover:bg-slate-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <Avatar className="h-9 w-9 shrink-0 border border-slate-200">
+                      <AvatarImage
+                        src={`https://api.dicebear.com/7.x/pixel-art/svg?seed=${name}`}
+                        alt={name}
+                      />
+                      <AvatarFallback className="text-[10px] font-bold">
+                        {name.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className="font-extrabold text-slate-900 text-xs truncate">
-                                {name}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-medium ml-1.5">
-                                {handle}
-                              </span>
-                            </div>
-                            <span className="text-[9px] text-slate-400 font-mono">
-                              {new Date(report.created_at).toLocaleTimeString(
-                                "id-ID",
-                                { hour: "2-digit", minute: "2-digit" }
-                              )}
-                            </span>
-                          </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <span className="flex items-center gap-2 text-[13px] font-bold text-slate-900">
+                          {name}
+                        </span>
+                        <time className="font-mono text-[11px] text-slate-400">
+                          {new Date(report.created_at).toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </time>
+                      </div>
 
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <span
-                              className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full text-white ${
-                                report.source === "x"
-                                  ? "bg-slate-900"
-                                  : report.source === "whatsapp"
-                                    ? "bg-emerald-500"
-                                    : "bg-gradient-to-tr from-yellow-500 via-pink-500 to-purple-500"
-                              }`}
-                            >
-                              {report.source === "x"
-                                ? "X / TWITTER"
-                                : report.source.toUpperCase()}
-                            </span>
-                            <span
-                              className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase border ${getCategoryBadgeClass(report.category)}`}
-                            >
-                              {report.category}
-                            </span>
-                          </div>
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        <Badge
+                          variant="outline"
+                          className={`text-[8px] font-extrabold uppercase ${getCategoryBadgeClass(report.category)}`}
+                        >
+                          {report.category}
+                        </Badge>
+                        <Badge
+                          variant="secondary"
+                          className="text-[8px] font-extrabold uppercase text-white"
+                        >
+                          {sourceLabel}
+                        </Badge>
+                      </div>
 
-                          <p className="text-xs text-slate-800 font-semibold mt-2.5 leading-relaxed">
-                            {report.text_original}
+                      <p className="mt-2 text-[15px] font-semibold leading-snug text-slate-900">
+                        {report.text_original}
+                      </p>
+
+                      {report.text_normalized &&
+                        report.text_normalized !== report.text_original && (
+                          <p className="mt-1.5 text-[13px] italic leading-relaxed text-slate-500">
+                            &ldquo;{report.text_normalized}&rdquo;
                           </p>
+                        )}
 
-                          {report.text_normalized &&
-                            report.text_normalized !== report.text_original && (
-                              <div className="mt-2 p-2 bg-teal-50/40 border border-teal-100/50 rounded-lg text-[10px] text-slate-600 font-medium italic">
-                                <span className="text-teal-700 font-extrabold uppercase not-italic block text-[8px] tracking-wider mb-0.5">
-                                  Terjemahan AI:
-                                </span>
-                                &quot;{report.text_normalized}&quot;
-                              </div>
-                            )}
-
-                          <div className="mt-3 flex justify-between items-center text-[10px] text-slate-400">
-                            <span>
-                              ID:{" "}
-                              <code className="font-mono font-bold text-slate-600">
-                                {report.id}
-                              </code>
-                            </span>
-                            <span className="text-teal-700 font-bold group-hover:underline flex items-center gap-0.5">
-                              Lacak <ChevronRight className="h-3.5 w-3.5" />
-                            </span>
-                          </div>
-                        </div>
+                      <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-slate-400">
+                        <span className="flex items-center gap-2">
+                          {report.id}
+                          {sourceUrl && (
+                            <a
+                              href={sourceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-0.5 font-sans font-bold text-sky-600 hover:underline"
+                              aria-label={`Lihat postingan asli di ${sourceLabel}`}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Postingan asli
+                            </a>
+                          )}
+                        </span>
+                        <span className="font-sans font-bold text-teal-700 opacity-0 transition-opacity group-hover:opacity-100">
+                          Lacak &rarr;
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-24 text-slate-400 text-xs">
-                Belum ada aduan masuk.
-              </div>
-            )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
-        </div>
-
-        <div className="mt-4 text-[10px] text-slate-400 flex items-center justify-between border-t border-slate-100 pt-3 flex-shrink-0 font-medium">
-          <span>
-            *Klik aduan untuk melacak perjalanan penanganannya secara langsung.
-          </span>
-          <span className="font-mono text-teal-700 font-bold flex items-center gap-1">
-            <Sailboat className="h-3.5 w-3.5" /> sambat.bjm
-          </span>
-        </div>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm font-bold text-slate-400">
+              Belum ada aduan masuk
+            </p>
+            <p className="max-w-[40ch] text-xs leading-relaxed text-slate-400">
+              Aduan dari media sosial akan muncul di sini begitu ditangkap AI.
+            </p>
+          </div>
+        )}
       </div>
+
+      <Separator className="mt-4" />
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        Klik salah satu aduan untuk melacak perjalanan penanganannya secara
+        langsung.
+      </p>
     </div>
   );
 }

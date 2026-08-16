@@ -1,65 +1,132 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { CalendarRange, MapPinCheck } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Report } from "@/lib/types";
 import KpiCards from "./KpiCards";
 import SmartExplainer from "./SmartExplainer";
 import CategoryChart from "./CategoryChart";
 import DinasLeaderboard from "./DinasLeaderboard";
 
-// Leaflet butuh browser — nonaktifkan SSR (hanya boleh di Client Component)
 const MapComponent = dynamic(() => import("../MapComponent"), { ssr: false });
+
+// ─── Filter waktu ───
+type TimeFilter = "7d" | "30d" | "90d" | "year" | "all";
+
+const FILTERS: { id: TimeFilter; label: string }[] = [
+  { id: "7d", label: "7 Hari" },
+  { id: "30d", label: "30 Hari" },
+  { id: "90d", label: "3 Bulan" },
+  { id: "year", label: "Tahun Ini" },
+  { id: "all", label: "Semua" },
+];
+
+function filterReports(reports: Report[], filter: TimeFilter): Report[] {
+  if (filter === "all") return reports;
+  const now = Date.now();
+  const limits: Record<TimeFilter, number> = {
+    "7d": 7 * 86400_000,
+    "30d": 30 * 86400_000,
+    "90d": 90 * 86400_000,
+    year: 365 * 86400_000,
+    all: Infinity,
+  };
+  const cutoff = now - limits[filter];
+  return reports.filter((r) => new Date(r.created_at).getTime() >= cutoff);
+}
 
 interface TransparansiPortalProps {
   reports: Report[];
 }
 
-// TAB: Transparansi Publik — KPI, peta sebaran, statistik, leaderboard OPD
+// TAB: Transparansi Publik — taste-skill editorial dashboard
+// Design read: public data transparency, trust-first, VARIANCE 4 / MOTION 2 / DENSITY 5
 export default function TransparansiPortal({ reports }: TransparansiPortalProps) {
-  return (
-    <div className="space-y-8 max-w-6xl mx-auto h-full flex flex-col">
-      <KpiCards reports={reports} />
+  const [filter, setFilter] = useState<TimeFilter>("all");
 
-      {/* Map & Explainer */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-[480px]">
-        {/* Map Panel */}
-        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 lg:col-span-2 h-[480px] flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Peta Sebaran Laporan & Prioritas SMART Kota Banjarmasin
-            </h3>
-            <div className="flex gap-3 text-[10px] font-bold text-slate-600">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>{" "}
-                Kritis
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span>{" "}
-                Tinggi
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>{" "}
-                Sedang
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>{" "}
-                Rendah
-              </span>
+  const filtered = useMemo(() => filterReports(reports, filter), [reports, filter]);
+  const repairedCount = filtered.filter((r) => r.repair_lat && r.repair_lng).length;
+
+  return (
+    <div className="bg-white">
+      {/* ─── Hero: judul + filter ─── */}
+      <section className="border-b border-slate-200">
+        <div className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-10 pt-12 pb-8">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.22em] text-teal-700">
+            Transparansi Publik — Kota Banjarmasin
+          </p>
+          <div className="mt-3 flex flex-wrap items-end justify-between gap-6">
+            <h1 className="max-w-2xl text-3xl font-extrabold tracking-tighter leading-[1.05] text-slate-900 sm:text-4xl">
+              Semua laporan, terbuka untuk semua.
+            </h1>
+            {/* Filter waktu — pill buttons */}
+            <div className="flex items-center gap-2">
+              <CalendarRange className="h-3.5 w-3.5 text-slate-400" />
+              <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+                {FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFilter(f.id)}
+                    className={cn(
+                      "cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-bold transition-all",
+                      filter === f.id
+                        ? "bg-slate-900 text-white shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-          <div className="flex-1 rounded-xl overflow-hidden border border-slate-200">
-            <MapComponent reports={reports} />
-          </div>
+          <p className="mt-4 max-w-[65ch] text-sm leading-relaxed text-slate-500">
+            Data real-time dari pipeline SAMBAT — diklasifikasi AI, diprioritaskan
+            SMART, ditindaklanjuti dinas, dikonfirmasi foto perbaikan.
+            {repairedCount > 0 && (
+              <span className="ml-1 font-semibold text-emerald-700">
+                {repairedCount} titik perbaikan telah ditandai di peta.
+              </span>
+            )}
+          </p>
         </div>
+      </section>
 
-        <SmartExplainer />
-      </div>
+      {/* ─── KPI ─── */}
+      <section className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-10 py-8">
+        <KpiCards reports={filtered} />
+      </section>
 
-      {/* Row 2: Analytics & Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <CategoryChart reports={reports} />
-        <DinasLeaderboard />
-      </div>
+      {/* ─── Peta + Explainer ─── */}
+      <section className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-10 pb-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
+          <div>
+            <div className="mb-3 flex items-baseline justify-between gap-4">
+              <h2 className="text-lg font-extrabold tracking-tight text-slate-900">
+                Peta Sebaran &amp; Titik Perbaikan
+              </h2>
+              <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                <MapPinCheck className="h-3.5 w-3.5 text-emerald-600" />
+                {repairedCount} perbaikan
+              </span>
+            </div>
+            <div className="h-[480px] overflow-hidden rounded-xl border border-slate-200 lg:h-[520px]">
+              <MapComponent reports={filtered} />
+            </div>
+          </div>
+          <SmartExplainer />
+        </div>
+      </section>
+
+      {/* ─── Statistik + Leaderboard ─── */}
+      <section className="mx-auto w-full max-w-[1400px] px-4 sm:px-6 lg:px-10 pb-16">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          <CategoryChart reports={filtered} />
+          <DinasLeaderboard reports={filtered} />
+        </div>
+      </section>
     </div>
   );
 }

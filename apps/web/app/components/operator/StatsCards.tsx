@@ -1,4 +1,7 @@
-import { AlertTriangle, Building, CheckCircle, FileText } from "lucide-react";
+"use client";
+
+import { Building2, CheckCircle, FileText, ShieldAlert } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import type { Case, Report } from "@/lib/types";
 
 interface StatsCardsProps {
@@ -24,14 +27,14 @@ export default function StatsCards({ reports, cases }: StatsCardsProps) {
           r.confidence < 0.8 &&
           r.status === "terdeteksi"
       ).length,
-      icon: AlertTriangle,
+      icon: ShieldAlert,
       color: "text-amber-600",
       bg: "bg-amber-50",
     },
     {
       label: "Kasus Kolektif Aktif",
       val: cases.length,
-      icon: Building,
+      icon: Building2,
       color: "text-sky-600",
       bg: "bg-sky-50",
     },
@@ -45,24 +48,23 @@ export default function StatsCards({ reports, cases }: StatsCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
       {stats.map((stat, idx) => (
-        <div
-          key={idx}
-          className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 flex items-center justify-between"
-        >
-          <div>
-            <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">
-              {stat.label}
-            </span>
-            <span className="text-2xl font-extrabold text-slate-900 mt-1 block">
-              {stat.val}
-            </span>
-          </div>
-          <div className={`p-3 rounded-xl ${stat.bg} ${stat.color} shadow-inner`}>
-            <stat.icon className="h-6 w-6" />
-          </div>
-        </div>
+        <Card key={idx} className="border-slate-200 shadow-sm">
+          <CardContent className="flex items-center justify-between p-5">
+            <div>
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                {stat.label}
+              </span>
+              <span className="mt-1 block text-2xl font-extrabold text-slate-900">
+                {stat.val}
+              </span>
+            </div>
+            <div className={`rounded-xl p-3 shadow-inner ${stat.bg} ${stat.color}`}>
+              <stat.icon className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

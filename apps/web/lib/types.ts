@@ -22,9 +22,13 @@ export interface Report {
   status: string;
   reporter_pseudo?: string;
   dinas_id?: string;
+  kelurahan?: string | null;
+  kecamatan?: string | null;
   sla_due?: string;
   image_before?: string;
   image_after?: string;
+  repair_lat?: number | null;
+  repair_lng?: number | null;
   created_at: string;
 }
 

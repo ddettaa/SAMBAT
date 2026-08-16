@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { sql, migrate, audit, id, tokenHash, token } from "./db";
-import { PILOT_CONFIG, calculatePriority } from "./config";
+import { sql, migrate, audit, id, token } from "./db";
+import { DINAS_BY_CATEGORY, PILOT_CONFIG, calculatePriority } from "./config";
 import { requireRoles, actor, keyHash } from "./auth";
 import { rateLimitMiddleware } from "./rate-limit";
 import { intake } from "./intake";
@@ -10,15 +10,11 @@ import { inCityBounds } from "./geo";
 
 const AI_URL = process.env.AI_URL || "http://localhost:8000";
 const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
-const DINAS_BY_CATEGORY: Record<string, string> = {
-  sampah: "d-dlh", drainase: "d-pupr", jalan: "d-pupr", lampu: "d-dishub",
-};
 const TRANSITIONS: Record<string, string[]> = {
   terdeteksi: ["terverifikasi", "diteruskan", "ditolak"],
   terverifikasi: ["diteruskan", "ditolak"],
   diteruskan: ["dikerjakan", "ditolak"],
-  dikerjakan: ["menunggu_konfirmasi", "ditolak"],
-  menunggu_konfirmasi: ["selesai", "dikerjakan"],
+  dikerjakan: ["selesai", "ditolak"],
   selesai: [],
   ditolak: [],
 };
@@ -112,10 +108,12 @@ app.post("/api/reports/:id/status", requireRoles("operator", "dinas"), async (c)
     return c.json({ error: `illegal transition ${row.status} → ${next}`, allowed: TRANSITIONS[row.status] }, 409);
   }
   const who = actor(c)!.name;
+  const repairLat = typeof body?.repairLat === "number" ? body.repairLat : null;
+  const repairLng = typeof body?.repairLng === "number" ? body.repairLng : null;
   if (body?.imageAfter) {
-    await sql`UPDATE reports SET status = ${next}, image_after = ${body.imageAfter}, updated_at = now() WHERE id = ${c.req.param("id")}`;
+    await sql`UPDATE reports SET status = ${next}, image_after = ${body.imageAfter}, repair_lat = ${repairLat}, repair_lng = ${repairLng}, updated_at = now() WHERE id = ${c.req.param("id")}`;
   } else {
-    await sql`UPDATE reports SET status = ${next}, updated_at = now() WHERE id = ${c.req.param("id")}`;
+    await sql`UPDATE reports SET status = ${next}, repair_lat = ${repairLat}, repair_lng = ${repairLng}, updated_at = now() WHERE id = ${c.req.param("id")}`;
   }
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: next, note: body?.note || null, actor: who })}`;
   await audit("status", "report", c.req.param("id")!, who, { from: row.status, to: next });
@@ -154,29 +152,6 @@ app.post("/api/reports/:id/auto-route", requireRoles("operator"), async (c) => {
   await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "diteruskan", note: `auto-route ${report.category} → ${dinasId}`, actor: "ai" })}`;
   await audit("auto-route", "report", c.req.param("id")!, actor(c)!.name, { dinasId });
   return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
-});
-
-// ─── citizen confirmation (rate-limited, TTL, attempts) ─────
-app.post("/api/reports/:id/confirm", async (c) => {
-  const body = await c.req.json().catch(() => null);
-  const supplied = typeof body?.token === "string" ? body.token : "";
-  const [row] = await sql`SELECT status, confirmation_token_hash, confirmation_expires_at, confirmation_attempts FROM reports WHERE id = ${c.req.param("id")}`;
-  if (!row) return c.json({ error: "not found" }, 404);
-  if (row.confirmation_expires_at && new Date(row.confirmation_expires_at) < new Date()) {
-    return c.json({ error: "confirmation token expired" }, 410);
-  }
-  if (row.confirmation_attempts >= PILOT_CONFIG.confirmationMaxAttempts) {
-    return c.json({ error: "too many attempts" }, 429);
-  }
-  await sql`UPDATE reports SET confirmation_attempts = confirmation_attempts + 1 WHERE id = ${c.req.param("id")}`;
-  if (!supplied || tokenHash(supplied) !== row.confirmation_token_hash) {
-    return c.json({ error: "invalid confirmation token" }, 403);
-  }
-  if (row.status !== "menunggu_konfirmasi") return c.json({ error: `belum siap dikonfirmasi (status ${row.status})` }, 409);
-  await sql`UPDATE reports SET status = 'selesai', updated_at = now() WHERE id = ${c.req.param("id")}`;
-  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "selesai", note: "dikonfirmasi warga", actor: "warga" })}`;
-  await audit("confirm", "report", c.req.param("id"), "warga", {});
-  return c.json({ id: c.req.param("id"), status: "selesai" });
 });
 
 // ─── cases ──────────────────────────────────────────────────
@@ -289,47 +264,16 @@ app.post("/api/public/reports", async (c) => {
   }, 201);
 });
 
-// ─── static prototype (HTML murni) ──────────────────────────
-app.get("/", async (c) => c.html(await Bun.file(`${import.meta.dir}/../public/index.html`).text()));
-app.get("/app.js", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/app.js`), { headers: { "content-type": "application/javascript; charset=utf-8" } }));
-app.get("/style.css", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/style.css`), { headers: { "content-type": "text/css; charset=utf-8" } }));
+// ─── root: info singkat (UI utama ada di apps/web — Next.js) ──
+app.get("/", (c) => c.json({ ok: true, service: "sambat-api", web: "http://localhost:3000" }));
 
 // ─── demo helper routes (operator only for presentation) ──
 app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
-  // Truncate runtime data tables
-  await sql`TRUNCATE TABLE notifications, sla_events, cases, reports, collector_inbox, audit_log CASCADE`;
-  
-  // Create default mock data so it is not empty on first demo
-  const list = [
-    { text: "Hujan lebat sedikit saja langsung banjir rob di daerah Lambung Mangkurat min, saluran air mampet tersumbat sampah plastik barataan. @sambat_bjm", category: "drainase", lat: -3.3244, lng: 114.5912, source: "x", reporterPseudo: "Ahmad Fadillah" },
-    { text: "TPS di Jalan Kuripan sampahnya meluber sampai ke jalan raya. Bau busuk banar mengganggu pejalan kaki dan bikin macet. Tolong dibersihkan @sambat_bjm", category: "sampah", lat: -3.3221, lng: 114.5945, source: "x", reporterPseudo: "Siti Rahmah" },
-    { text: "Jalan di Jembatan Pasar Lama banyak nang bolong ganal, membahayakan pengendara roda dua mun handak lewat malam hari. @sambat_bjm", category: "jalan", lat: -3.3182, lng: 114.5891, source: "x", reporterPseudo: "Udin Baso" },
-    { text: "Lampu jalan (PJU) sepanjang Jl. Hasan Basri Kayutangi dekat kampus ULM banyak nang mati. Gelap gulita mun malam, rawan kejahatan. @sambat_bjm", category: "lampu", lat: -3.2982, lng: 114.5862, source: "x", reporterPseudo: "Rian Hidayat" },
-    { text: "Banyu meluap di Siring Jl. S. Parman gara-gara parit drainase mampet total ketutup tanah dan lumpur tebal. Tolong PUPR ditengok. @sambat_bjm", category: "drainase", lat: -3.3134, lng: 114.5821, source: "x", reporterPseudo: "Lana Kalsel" },
-    { text: "Jalan Pramuka dekat terminal KM 6 jalannya retak dan berlubang parah. Sering bikin macet panjang pas jam pulang kantor. @sambat_bjm", category: "jalan", lat: -3.3262, lng: 114.6111, source: "x", reporterPseudo: "Hendra Wijaya" },
-    { text: "Ada tumpukan sampah liar besar di pinggir jalan dekat TPS Basirih, baunya menyengat banar sampai ke pemukiman warga terdekat @sambat_bjm", category: "sampah", lat: -3.3450, lng: 114.5850, source: "x", reporterPseudo: "Yusuf Amin" },
-    { text: "Lampu PJU padam total di kawasan Jembatan Mantuil Ujung. Gelap banar mun malam hari, bahaya gasan warga nang bulik bagawi. @sambat_bjm", category: "lampu", lat: -3.3550, lng: 114.6020, source: "x", reporterPseudo: "Dewi Lestari" }
-  ];
-
-  const mockImages: Record<string, string> = {
-    sampah: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?q=80&w=600",
-    jalan: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=600",
-    lampu: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=600",
-    drainase: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=600"
-  };
-
-  for (const item of list) {
-    await intake({
-      text: item.text,
-      source: item.source,
-      latitude: item.lat,
-      longitude: item.lng,
-      reporterPseudo: item.reporterPseudo,
-      imageBefore: mockImages[item.category] || null
-    }, "system-demo");
-  }
-
-  return c.json({ ok: true, message: "Database cleared and reseeded with 8 active reports" });
+  // Pakai seeder lengkap — semua lewat pipeline database asli
+  const { seedDemo } = await import("../database/seed-demo");
+  await seedDemo();
+  return c.json({ ok: true, message: "Database reset dengan data demo lengkap (via pipeline asli)" });
+});
 });
 
 app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
