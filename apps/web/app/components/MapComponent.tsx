@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import L from "leaflet";
-import { Globe } from "lucide-react";
+import { Car, CloudRain, Globe, House, Siren, Users, Waves } from "lucide-react";
 
 interface Report {
   id: string;
@@ -277,12 +277,12 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
         
         <div className="space-y-2 text-xs font-semibold">
           {[
-            { id: "banjir", name: "🌊 Banjir Rob", count: 52, color: "text-cyan-600", desc: "Data_Genangan_2025_10K_AR" },
-            { id: "genangan", name: "🌧️ Genangan Air", count: 49, color: "text-blue-600", desc: "Data_Genangan_PUPR" },
-            { id: "kumuh", name: "🏚️ Permukiman Kumuh", count: 51, color: "text-purple-600", desc: "Kawasan_Kumuh_Perkim" },
-            { id: "kebakaran", name: "🚨 Rawan Kebakaran", count: 20, color: "text-red-600", desc: "Rawan_Kebakaran_Damkar" },
-            { id: "macet", name: "🚗 Titik Kemacetan", count: 6, color: "text-amber-600", desc: "Titik_Macet_Dishub" },
-            { id: "dtks", name: "👥 DTKS Kesejahteraan", count: 51, color: "text-emerald-600", desc: "Data_DTKS_Dinsos" },
+            { id: "banjir", name: "Banjir Rob", icon: Waves, count: 52, color: "text-cyan-600", desc: "Data_Genangan_2025_10K_AR" },
+            { id: "genangan", name: "Genangan Air", icon: CloudRain, count: 49, color: "text-blue-600", desc: "Data_Genangan_PUPR" },
+            { id: "kumuh", name: "Permukiman Kumuh", icon: House, count: 51, color: "text-purple-600", desc: "Kawasan_Kumuh_Perkim" },
+            { id: "kebakaran", name: "Rawan Kebakaran", icon: Siren, count: 20, color: "text-red-600", desc: "Rawan_Kebakaran_Damkar" },
+            { id: "macet", name: "Titik Kemacetan", icon: Car, count: 6, color: "text-amber-600", desc: "Titik_Macet_Dishub" },
+            { id: "dtks", name: "DTKS Kesejahteraan", icon: Users, count: 51, color: "text-emerald-600", desc: "Data_DTKS_Dinsos" },
           ].map((layer) => {
             const isActive = activeGisLayers.includes(layer.id);
             return (
@@ -303,7 +303,10 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
                     }}
                     className="accent-teal-700 h-3.5 w-3.5 cursor-pointer rounded"
                   />
-                  <span className={`${layer.color} font-bold text-[11px]`}>{layer.name}</span>
+                  <span className={`${layer.color} font-bold text-[11px] flex items-center gap-1.5`}>
+                    <layer.icon className="h-3.5 w-3.5" />
+                    {layer.name}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <span className="text-[9px] bg-slate-100 text-slate-500 font-bold px-1.5 py-0.5 rounded-md border border-slate-200 font-mono">

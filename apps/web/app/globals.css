@@ -86,3 +86,16 @@ body {
   scrollbar-width: none;
 }
 
+/* Slow spin untuk ikon gear Demo Control Center */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin-slow 10s linear infinite;
+}
+
