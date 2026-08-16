@@ -306,10 +306,10 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
   ];
 
   const mockImages: Record<string, string> = {
-    sampah: "https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?q=80&w=400",
-    jalan: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=400",
-    lampu: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=400",
-    drainase: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400"
+    sampah: "https://images.unsplash.com/photo-1530587191325-3db32d826c18?q=80&w=600",
+    jalan: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=600",
+    lampu: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=600",
+    drainase: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=600"
   };
 
   for (const item of list) {
@@ -337,7 +337,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       latitude: -3.342,
       longitude: 114.583,
       reporterPseudo: "Ulun Banjar",
-      imageBefore: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400"
+      imageBefore: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=600"
     }, "web-form");
     return c.json(res);
   }
@@ -356,7 +356,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
         latitude: r.lat,
         longitude: r.lng,
         reporterPseudo: r.pseudo,
-        imageBefore: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=400"
+        imageBefore: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=600"
       }, "web-form");
       results.push(res);
     }
@@ -370,6 +370,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       latitude: -3.332,
       longitude: 114.595,
       reporterPseudo: "Anonim",
+      imageBefore: "https://images.unsplash.com/photo-1595841696660-1d965503a552?q=80&w=600"
     }, "whatsapp-bot");
     return c.json(res);
   }
@@ -381,7 +382,7 @@ app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
       latitude: -3.328,
       longitude: 114.615,
       reporterPseudo: "Warga Pramuka",
-      imageBefore: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=400"
+      imageBefore: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=600"
     }, "web-form");
     
     if (res.ok) {
