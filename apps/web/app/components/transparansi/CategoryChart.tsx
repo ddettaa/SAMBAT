@@ -1,4 +1,7 @@
+"use client";
+
 import { Globe } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import type { Report } from "@/lib/types";
 
 interface CategoryChartProps {
@@ -31,13 +34,13 @@ export default function CategoryChart({ reports }: CategoryChartProps) {
   ];
 
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
-      <h3 className="text-sm font-extrabold text-slate-900 mb-6 flex items-center gap-2">
-        <Globe className="h-4.5 w-4.5 text-teal-700" />
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+      <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+        <Globe className="h-4 w-4 text-teal-700" />
         Statistik & Kategori Pengaduan Terbanyak
       </h3>
 
-      <div className="space-y-4">
+      <div className="mt-6 space-y-4">
         {categories.map((item, idx) => {
           const total = reports.length || 1;
           const percentage = Math.round((item.count / total) * 100);
@@ -49,7 +52,7 @@ export default function CategoryChart({ reports }: CategoryChartProps) {
                   {item.count} Laporan ({percentage}%)
                 </span>
               </div>
-              <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+              <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                   className={`h-full rounded-full transition-all duration-1000 ${item.color}`}
                   style={{ width: `${Math.max(4, percentage)}%` }}
@@ -60,14 +63,16 @@ export default function CategoryChart({ reports }: CategoryChartProps) {
         })}
       </div>
 
+      <Separator className="my-6" />
+
       {/* SVG SLA Trend Line Chart */}
-      <div className="mt-8 border-t border-slate-200 pt-6">
-        <span className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">
+      <div>
+        <span className="mb-4 block text-xs font-bold uppercase tracking-wider text-slate-500">
           Tren Kecepatan Penyelesaian Dinas (Hari/Kasus)
         </span>
-        <div className="w-full h-32 relative">
+        <div className="relative h-32 w-full">
           <svg
-            className="w-full h-full overflow-visible"
+            className="h-full w-full overflow-visible"
             viewBox="0 0 400 100"
             preserveAspectRatio="none"
           >
@@ -77,12 +82,10 @@ export default function CategoryChart({ reports }: CategoryChartProps) {
                 <stop offset="100%" stopColor="#0f766e" stopOpacity="0.0" />
               </linearGradient>
             </defs>
-            {/* Area Path */}
             <path
               d="M 0 90 Q 80 50, 160 70 T 320 20 L 400 30 L 400 100 L 0 100 Z"
               fill="url(#chartGrad)"
             />
-            {/* Line Path */}
             <path
               d="M 0 90 Q 80 50, 160 70 T 320 20 L 400 30"
               fill="none"
@@ -90,18 +93,16 @@ export default function CategoryChart({ reports }: CategoryChartProps) {
               strokeWidth="2.5"
               strokeLinecap="round"
             />
-            {/* Dots */}
             <circle cx="80" cy="70" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
             <circle cx="160" cy="70" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
             <circle cx="240" cy="40" r="4" fill="#0f766e" stroke="white" strokeWidth="1.5" />
             <circle cx="320" cy="20" r="4" fill="#f59e0b" stroke="white" strokeWidth="1.5" />
           </svg>
-          {/* X-Axis labels */}
-          <div className="flex justify-between text-[9px] text-slate-400 font-mono mt-2 uppercase">
-            <span>Minggu 1</span>
-            <span>Minggu 2</span>
-            <span>Minggu 3</span>
-            <span>Minggu 4 (Aktif)</span>
+          <div className="mt-2 flex justify-between font-mono text-[9px] uppercase text-slate-400">
+            <span>Mg 1</span>
+            <span>Mg 2</span>
+            <span>Mg 3</span>
+            <span>Mg 4</span>
           </div>
         </div>
       </div>

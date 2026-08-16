@@ -22,6 +22,8 @@ export interface Report {
   status: string;
   reporter_pseudo?: string;
   dinas_id?: string;
+  kelurahan?: string | null;
+  kecamatan?: string | null;
   sla_due?: string;
   image_before?: string;
   image_after?: string;

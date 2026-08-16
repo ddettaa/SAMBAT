@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { sql, migrate, audit, id, tokenHash, token } from "./db";
-import { PILOT_CONFIG, calculatePriority } from "./config";
+import { sql, migrate, audit, id, token } from "./db";
+import { DINAS_BY_CATEGORY, PILOT_CONFIG, calculatePriority } from "./config";
 import { requireRoles, actor, keyHash } from "./auth";
 import { rateLimitMiddleware } from "./rate-limit";
 import { intake } from "./intake";
@@ -10,15 +10,11 @@ import { inCityBounds } from "./geo";
 
 const AI_URL = process.env.AI_URL || "http://localhost:8000";
 const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
-const DINAS_BY_CATEGORY: Record<string, string> = {
-  sampah: "d-dlh", drainase: "d-pupr", jalan: "d-pupr", lampu: "d-dishub",
-};
 const TRANSITIONS: Record<string, string[]> = {
   terdeteksi: ["terverifikasi", "diteruskan", "ditolak"],
   terverifikasi: ["diteruskan", "ditolak"],
   diteruskan: ["dikerjakan", "ditolak"],
-  dikerjakan: ["menunggu_konfirmasi", "ditolak"],
-  menunggu_konfirmasi: ["selesai", "dikerjakan"],
+  dikerjakan: ["selesai", "ditolak"],
   selesai: [],
   ditolak: [],
 };
@@ -156,29 +152,6 @@ app.post("/api/reports/:id/auto-route", requireRoles("operator"), async (c) => {
   return c.json({ id: c.req.param("id"), dinasId, slaDue, status: "diteruskan" });
 });
 
-// ─── citizen confirmation (rate-limited, TTL, attempts) ─────
-app.post("/api/reports/:id/confirm", async (c) => {
-  const body = await c.req.json().catch(() => null);
-  const supplied = typeof body?.token === "string" ? body.token : "";
-  const [row] = await sql`SELECT status, confirmation_token_hash, confirmation_expires_at, confirmation_attempts FROM reports WHERE id = ${c.req.param("id")}`;
-  if (!row) return c.json({ error: "not found" }, 404);
-  if (row.confirmation_expires_at && new Date(row.confirmation_expires_at) < new Date()) {
-    return c.json({ error: "confirmation token expired" }, 410);
-  }
-  if (row.confirmation_attempts >= PILOT_CONFIG.confirmationMaxAttempts) {
-    return c.json({ error: "too many attempts" }, 429);
-  }
-  await sql`UPDATE reports SET confirmation_attempts = confirmation_attempts + 1 WHERE id = ${c.req.param("id")}`;
-  if (!supplied || tokenHash(supplied) !== row.confirmation_token_hash) {
-    return c.json({ error: "invalid confirmation token" }, 403);
-  }
-  if (row.status !== "menunggu_konfirmasi") return c.json({ error: `belum siap dikonfirmasi (status ${row.status})` }, 409);
-  await sql`UPDATE reports SET status = 'selesai', updated_at = now() WHERE id = ${c.req.param("id")}`;
-  await sql`INSERT INTO sla_events ${sql({ id: id("sla"), report_id: c.req.param("id"), status: "selesai", note: "dikonfirmasi warga", actor: "warga" })}`;
-  await audit("confirm", "report", c.req.param("id"), "warga", {});
-  return c.json({ id: c.req.param("id"), status: "selesai" });
-});
-
 // ─── cases ──────────────────────────────────────────────────
 app.get("/api/cases", requireRoles("operator", "dinas"), async (c) => {
   return c.json(await sql`SELECT * FROM cases ORDER BY score DESC, created_at DESC`);
@@ -289,42 +262,15 @@ app.post("/api/public/reports", async (c) => {
   }, 201);
 });
 
-// ─── static prototype (HTML murni) ──────────────────────────
-app.get("/", async (c) => c.html(await Bun.file(`${import.meta.dir}/../public/index.html`).text()));
-app.get("/app.js", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/app.js`), { headers: { "content-type": "application/javascript; charset=utf-8" } }));
-app.get("/style.css", async (c) => new Response(Bun.file(`${import.meta.dir}/../public/style.css`), { headers: { "content-type": "text/css; charset=utf-8" } }));
+// ─── root: info singkat (UI utama ada di apps/web — Next.js) ──
+app.get("/", (c) => c.json({ ok: true, service: "sambat-api", web: "http://localhost:3000" }));
 
 // ─── demo helper routes (operator only for presentation) ──
 app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
-  // Truncate runtime data tables
-  await sql`TRUNCATE TABLE notifications, sla_events, cases, reports, collector_inbox, audit_log CASCADE`;
-  
-  // Create default mock data so it is not empty on first demo
-  const list = [
-    { text: "Ada tumpukan sampah besar di dekat TPS Basirih, bau busuk sekali.", category: "sampah", lat: -3.345, lng: 114.585, source: "web", reporterPseudo: "Warga Basirih" },
-    { text: "Jalan Veteran lubangnya makin parah dan dalam, bahaya buat motor.", category: "jalan", lat: -3.321, lng: 114.592, source: "web", reporterPseudo: "Pengendara" },
-    { text: "PJU padam total di sekitar jembatan Mantuil, gelap sekali kalau malam.", category: "lampu", lat: -3.355, lng: 114.602, source: "x", reporterPseudo: "mantuil_bjm" }
-  ];
-
-  const mockImages: Record<string, string> = {
-    sampah: "https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?q=80&w=400",
-    jalan: "https://images.unsplash.com/photo-1515162305285-0293e4767cc2?q=80&w=400",
-    lampu: "https://images.unsplash.com/photo-1509099836639-18ba1795216d?q=80&w=400",
-    drainase: "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?q=80&w=400"
-  };
-
-  for (const item of list) {
-    await intake({
-      text: item.text,
-      source: item.source,
-      latitude: item.lat,
-      longitude: item.lng,
-      reporterPseudo: item.reporterPseudo,
-      imageBefore: mockImages[item.category] || null
-    }, "system-demo");
-  }
-
-  return c.json({ ok: true, message: "Database cleared and reseeded with 3 active reports" });
+  // Pakai seeder lengkap — semua lewat pipeline database asli
+  const { seedDemo } = await import("../database/seed-demo");
+  await seedDemo();
+  return c.json({ ok: true, message: "Database reset dengan data demo lengkap (via pipeline asli)" });
 });
 
 app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {

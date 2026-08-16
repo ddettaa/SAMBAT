@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Lock, User } from "lucide-react";
+import { User } from "lucide-react";
 import { routeReport } from "@/lib/api";
 import type { Case, Dinas, Report } from "@/lib/types";
-import OperatorLogin from "./OperatorLogin";
 import StatsCards from "./StatsCards";
 import TriageQueue from "./TriageQueue";
 import ReviewPanel from "./ReviewPanel";
@@ -17,14 +16,14 @@ interface OperatorDashboardProps {
   onDataChanged: () => void;
 }
 
-// TAB: Dasbor Operator — verifikasi, triage, dan disposisi laporan
+// Dasbor Operator — verifikasi & triage aduan ambigu.
+// Otentikasi ditangani terpusat oleh halaman /login + guard di /operator.
 export default function OperatorDashboard({
   reports,
   cases,
   dinasList,
   onDataChanged,
 }: OperatorDashboardProps) {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [reviewReport, setReviewReport] = useState<Report | null>(null);
   const [operatorMsg, setOperatorMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,29 +47,18 @@ export default function OperatorDashboard({
     setLoading(false);
   };
 
-  if (!isLoggedIn) {
-    return <OperatorLogin onSuccess={() => setIsLoggedIn(true)} />;
-  }
-
   return (
     <div className="space-y-8 max-w-6xl mx-auto">
-      {/* Dashboard Header with Logout */}
-      <div className="flex items-center justify-between bg-white border border-slate-200 shadow-sm rounded-2xl px-6 py-4">
-        <div>
-          <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-            <User className="h-4.5 w-4.5 text-teal-700" />
-            Verifikasi & Penyaringan Laporan (Operator)
-          </h2>
-          <p className="text-[10px] text-slate-500 mt-0.5">
-            Sesi aktif terverifikasi menggunakan operator_key
-          </p>
-        </div>
-        <button
-          onClick={() => setIsLoggedIn(false)}
-          className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <Lock className="h-3.5 w-3.5" /> Kunci Kembali
-        </button>
+      {/* Section header */}
+      <div className="bg-white border border-slate-200 shadow-sm rounded-2xl px-6 py-4">
+        <h2 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+          <User className="h-4.5 w-4.5 text-teal-700" />
+          Verifikasi & Penyaringan Laporan (Operator)
+        </h2>
+        <p className="text-[10px] text-slate-500 mt-0.5">
+          Aduan dengan confidence AI tinggi sudah otomatis diteruskan ke dinas
+          — antrean ini hanya berisi aduan ambigu.
+        </p>
       </div>
 
       <StatsCards reports={reports} cases={cases} />

@@ -1,15 +1,43 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f8fafc; /* Slate 50 */
-  --foreground: #0f172a; /* Slate 900 */
-  --border: #e2e8f0;     /* Slate 200 */
-  --card: #ffffff;
-  --primary: #0f766e;    /* Teal 700 */
-  --primary-foreground: #ffffff;
-  --accent: #f59e0b;     /* Amber 500 */
-  --blue: #0284c7;       /* Sky 600 */
-  --font-sans: var(--font-sans);
+  --border: oklch(0.922 0 0);
+  --card: oklch(1 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.97 0 0);
+  --blue: #0284c7;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 @theme inline {
@@ -21,18 +49,52 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-blue: var(--blue);
-  --font-sans: var(--font-sans);
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 /* Sasirangan Pattern Background Overlay */
 .bg-sasirangan {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60' viewBox='0 0 60 60'%3E%3Cpath d='M30 0 L60 30 L30 60 L0 30 Z' fill='none' stroke='%230f766e' stroke-width='1.5' stroke-opacity='0.08'/%3E%3Ccircle cx='30' cy='30' r='3' fill='%23f59e0b' fill-opacity='0.12'/%3E%3Cpath d='M0 30 Q 15 15, 30 30 T 60 30' fill='none' stroke='%230284c7' stroke-width='1' stroke-opacity='0.08'/%3E%3C/svg%3E");
+}
+
+/* Repair pin — no background, just the SVG icon */
+.repair-pin {
+  background: transparent !important;
+  border: none !important;
+  cursor: grab;
+}
+.repair-pin:active {
+  cursor: grabbing;
 }
 
 /* Leaflet Map overrides for Light Theme */
@@ -63,7 +125,45 @@ body {
   border: 1px solid #e2e8f0;
 }
 
-/* Infinite vertical scroll marquee for Social Listening Cards */
+/* Label kecamatan — bold dark, terbaca di atas warna apa pun */
+.kecamatan-label {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(15, 23, 42, 0.15) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #1e293b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px !important;
+  pointer-events: none;
+}
+.kecamatan-label::before {
+  display: none !important;
+}
+
+/* Label kelurahan — chip kecil putih, muncul saat zoom >= 13 */
+.kelurahan-label {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 4px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 9px;
+  font-weight: 600;
+  color: #334155;
+  padding: 1px 5px !important;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.kelurahan-label::before {
+  display: none !important;
+}
+
+/* Infinite vertical scroll marquee for Social Listening rows.
+   Hanya aktif bila pengguna tidak meminta reduced motion. */
 @keyframes verticalMarquee {
   0% {
     transform: translateY(0);
@@ -72,11 +172,13 @@ body {
     transform: translateY(-50%);
   }
 }
-.animate-marquee-vertical {
-  animation: verticalMarquee 40s linear infinite;
-}
-.animate-marquee-vertical:hover {
-  animation-play-state: paused;
+@media (prefers-reduced-motion: no-preference) {
+  .animate-marquee-vertical {
+    animation: verticalMarquee 40s linear infinite;
+  }
+  .animate-marquee-vertical:hover {
+    animation-play-state: paused;
+  }
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
@@ -86,16 +188,53 @@ body {
   scrollbar-width: none;
 }
 
-/* Slow spin untuk ikon gear Demo Control Center */
-@keyframes spin-slow {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-.animate-spin-slow {
-  animation: spin-slow 10s linear infinite;
+.dark {
+ --background: oklch(0.145 0 0);
+ --foreground: oklch(0.985 0 0);
+ --card: oklch(0.205 0 0);
+ --card-foreground: oklch(0.985 0 0);
+ --popover: oklch(0.205 0 0);
+ --popover-foreground: oklch(0.985 0 0);
+ --primary: oklch(0.922 0 0);
+ --primary-foreground: oklch(0.205 0 0);
+ --secondary: oklch(0.269 0 0);
+ --secondary-foreground: oklch(0.985 0 0);
+ --muted: oklch(0.269 0 0);
+ --muted-foreground: oklch(0.708 0 0);
+ --accent: oklch(0.269 0 0);
+ --accent-foreground: oklch(0.985 0 0);
+ --destructive: oklch(0.704 0.191 22.216);
+ --border: oklch(1 0 0 / 10%);
+ --input: oklch(1 0 0 / 15%);
+ --ring: oklch(0.556 0 0);
+ --chart-1: oklch(0.87 0 0);
+ --chart-2: oklch(0.556 0 0);
+ --chart-3: oklch(0.439 0 0);
+ --chart-4: oklch(0.371 0 0);
+ --chart-5: oklch(0.269 0 0);
+ --sidebar: oklch(0.205 0 0);
+ --sidebar-foreground: oklch(0.985 0 0);
+ --sidebar-primary: oklch(0.488 0.243 264.376);
+ --sidebar-primary-foreground: oklch(0.985 0 0);
+ --sidebar-accent: oklch(0.269 0 0);
+ --sidebar-accent-foreground: oklch(0.985 0 0);
+ --sidebar-border: oklch(1 0 0 / 10%);
+ --sidebar-ring: oklch(0.556 0 0);
 }
 
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

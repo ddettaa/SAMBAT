@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { DINAS_BY_CATEGORY, DEFAULT_DINAS_ID } from "@/lib/constants";
 import type { Dinas, Report } from "@/lib/types";
-
-const CATEGORIES = ["sampah", "drainase", "jalan", "lampu", "lainnya"];
 
 interface ReviewPanelProps {
   report: Report | null;
@@ -16,8 +17,7 @@ interface ReviewPanelProps {
 }
 
 // Panel verifikasi manual — koreksi kategori & pilih dinas penerima.
-// Catatan: beri prop `key={report.id}` dari parent agar form ter-reset
-// dengan nilai default laporan yang baru dipilih.
+// Beri prop `key={report.id}` dari parent agar form ter-reset tiap ganti laporan.
 export default function ReviewPanel({
   report,
   dinasList,
@@ -25,85 +25,69 @@ export default function ReviewPanel({
   message,
   onSubmit,
 }: ReviewPanelProps) {
-  const [editCategory, setEditCategory] = useState(
-    report?.category ?? "lainnya"
-  );
-  const [editDinas, setEditDinas] = useState(
-    (report && DINAS_BY_CATEGORY[report.category]) || DEFAULT_DINAS_ID
-  );
+  const defaultDinas =
+    (report && DINAS_BY_CATEGORY[report.category]) || DEFAULT_DINAS_ID;
+  const [selectedDinas, setSelectedDinas] = useState(defaultDinas);
 
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
-      <h3 className="text-sm font-extrabold text-slate-900 mb-4">
-        Panel Verifikasi Manual
-      </h3>
+    <Card className="border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-sm font-extrabold text-slate-900">
+          Panel Verifikasi Manual
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {report ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Isi Aduan
+              </span>
+              <p className="text-xs italic text-slate-700">
+                &quot;{report.text_original}&quot;
+              </p>
+            </div>
 
-      {report ? (
-        <div className="space-y-4">
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1">
-              Isi Aduan
-            </span>
-            <p className="text-xs text-slate-700 italic">
-              &quot;{report.text_original}&quot;
-            </p>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="dinas-select" className="text-xs font-bold text-slate-600">
+                Dinas Penerima
+              </Label>
+              <select
+                id="dinas-select"
+                value={selectedDinas}
+                onChange={(e) => setSelectedDinas(e.target.value)}
+                className="flex h-9 w-full rounded-lg border border-slate-300 bg-white px-3 text-xs text-slate-700 transition-colors focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+              >
+                {dinasList.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.short} — {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">
-              Koreksi Kategori
-            </label>
-            <select
-              value={editCategory}
-              onChange={(e) => setEditCategory(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
+            <Button
+              onClick={() => onSubmit(selectedDinas)}
+              disabled={loading}
+              className="w-full font-bold"
             >
-              {CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat.toUpperCase()}
-                </option>
-              ))}
-            </select>
+              <Check className="h-4 w-4" />
+              Tembuskan ke Dinas
+            </Button>
+
+            {message && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-700">
+                {message}
+              </p>
+            )}
           </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-2">
-              Dinas Penerima
-            </label>
-            <select
-              value={editDinas}
-              onChange={(e) => setEditDinas(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-teal-500 focus:bg-white"
-            >
-              {dinasList.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.short} — {d.name}
-                </option>
-              ))}
-            </select>
+        ) : (
+          <div className="py-24 text-center text-xs font-medium text-slate-400">
+            Pilih salah satu laporan di antrean sebelah kiri untuk melakukan
+            review visual manual.
           </div>
-
-          <button
-            onClick={() => onSubmit(editDinas)}
-            disabled={loading}
-            className="w-full bg-teal-700 hover:bg-teal-800 text-white font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 cursor-pointer shadow-sm mt-4 disabled:opacity-50"
-          >
-            <Check className="h-4 w-4" />
-            Tembuskan ke Dinas
-          </button>
-
-          {message && (
-            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 mt-2">
-              {message}
-            </p>
-          )}
-        </div>
-      ) : (
-        <div className="text-center py-24 text-xs text-slate-400 font-medium">
-          Pilih salah satu laporan di antrean sebelah kiri untuk melakukan
-          review visual manual.
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -57,11 +57,6 @@ async function postJson(
   }
 }
 
-// Konfirmasi warga bahwa perbaikan selesai (menutup tiket)
-export function confirmReport(reportId: string, token: string) {
-  return postJson(`/api/reports/${reportId}/confirm`, { token });
-}
-
 // Operator: verifikasi & teruskan laporan ke dinas
 export function routeReport(reportId: string, dinasId: string) {
   return postJson(
@@ -83,13 +78,4 @@ export function updateReportStatus(
     { status, note, imageAfter },
     KEYS.dinas
   );
-}
-
-// Demo control center
-export function demoReset() {
-  return postJson("/api/demo/reset", {}, KEYS.operator);
-}
-
-export function demoSimulate(scenario: string) {
-  return postJson("/api/demo/simulate", { scenario }, KEYS.operator);
 }

@@ -17,37 +17,19 @@ interface TransparansiPortalProps {
 // TAB: Transparansi Publik — KPI, peta sebaran, statistik, leaderboard OPD
 export default function TransparansiPortal({ reports }: TransparansiPortalProps) {
   return (
-    <div className="space-y-8 max-w-6xl mx-auto h-full flex flex-col">
+    <div className="mx-auto flex h-full max-w-6xl flex-col space-y-8">
       <KpiCards reports={reports} />
 
       {/* Map & Explainer */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1 min-h-[480px]">
-        {/* Map Panel */}
-        <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-5 lg:col-span-2 h-[480px] flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Peta Sebaran Laporan & Prioritas SMART Kota Banjarmasin
+      <div className="grid min-h-[480px] flex-1 grid-cols-1 gap-6 lg:grid-cols-3 lg:gap-8">
+        {/* Map Panel — layer control & legend sudah built-in di MapComponent */}
+        <div className="flex h-[420px] flex-col lg:col-span-2 lg:h-[520px]">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Peta Sebaran Laporan & Risiko — Kota Banjarmasin
             </h3>
-            <div className="flex gap-3 text-[10px] font-bold text-slate-600">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>{" "}
-                Kritis
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-400"></span>{" "}
-                Tinggi
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-yellow-400"></span>{" "}
-                Sedang
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>{" "}
-                Rendah
-              </span>
-            </div>
           </div>
-          <div className="flex-1 rounded-xl overflow-hidden border border-slate-200">
+          <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
             <MapComponent reports={reports} />
           </div>
         </div>
@@ -56,9 +38,9 @@ export default function TransparansiPortal({ reports }: TransparansiPortalProps)
       </div>
 
       {/* Row 2: Analytics & Leaderboard */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
         <CategoryChart reports={reports} />
-        <DinasLeaderboard />
+        <DinasLeaderboard reports={reports} />
       </div>
     </div>
   );

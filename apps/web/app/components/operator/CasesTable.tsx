@@ -1,3 +1,14 @@
+"use client";
+
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { getCategoryBadgeClass, getStatusBadgeClass } from "@/lib/utils";
 import type { Case } from "@/lib/types";
 
@@ -5,77 +16,79 @@ interface CasesTableProps {
   cases: Case[];
 }
 
-// Tabel kasus kolektif hasil penggabungan (clustered cases)
+// Tabel kasus kolektif hasil penggabungan (clustered cases) — pakai shadcn Table
 export default function CasesTable({ cases }: CasesTableProps) {
   return (
-    <div className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6">
-      <h3 className="text-sm font-extrabold text-slate-900 mb-4">
+    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="mb-4 text-sm font-extrabold text-slate-900">
         Kasus Kolektif Hasil Penggabungan (Clustered Cases)
       </h3>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase tracking-wider">
-              <th className="pb-3 font-bold">ID Kasus</th>
-              <th className="pb-3 font-bold">Kategori</th>
-              <th className="pb-3 font-bold">Nama Kasus & Volume Laporan</th>
-              <th className="pb-3 font-bold text-center">Bobot Prioritas</th>
-              <th className="pb-3 font-bold">Status</th>
-              <th className="pb-3 font-bold">Waktu Dibuat</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {cases.map((c) => (
-              <tr key={c.id} className="text-slate-700 hover:bg-slate-50/50">
-                <td className="py-4 font-mono text-slate-500 font-bold">
-                  {c.id}
-                </td>
-                <td className="py-4 capitalize">
-                  <span
-                    className={`px-2.5 py-1 text-[10px] font-bold border rounded-full ${getCategoryBadgeClass(c.category)}`}
-                  >
-                    {c.category}
-                  </span>
-                </td>
-                <td className="py-4">
-                  <span className="font-bold text-slate-900">{c.title}</span>
-                  <div className="mt-1">
-                    <span className="text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200 px-2 py-0.5 rounded-full w-max">
-                      {c.report_count} Laporan Serupa Digabung
-                    </span>
-                  </div>
-                </td>
-                <td className="py-4 text-center font-bold text-red-600">
-                  {c.score} / 100
-                </td>
-                <td className="py-4">
-                  <span
-                    className={`px-2.5 py-1 text-[10px] font-bold border rounded-full ${getStatusBadgeClass(c.status)}`}
-                  >
-                    {c.status}
-                  </span>
-                </td>
-                <td className="py-4 text-slate-400">
-                  {new Date(c.created_at).toLocaleString("id-ID")}
-                </td>
-              </tr>
-            ))}
-
-            {cases.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="text-center py-10 text-slate-400 font-medium"
+      <Table>
+        <TableHeader>
+          <TableRow className="border-slate-200 text-slate-400 uppercase tracking-wider">
+            <TableHead className="pb-3 font-bold">ID Kasus</TableHead>
+            <TableHead className="pb-3 font-bold">Kategori</TableHead>
+            <TableHead className="pb-3 font-bold">Nama & Volume</TableHead>
+            <TableHead className="pb-3 text-center font-bold">Prioritas</TableHead>
+            <TableHead className="pb-3 font-bold">Status</TableHead>
+            <TableHead className="pb-3 font-bold">Dibuat</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-slate-100">
+          {cases.map((c) => (
+            <TableRow key={c.id} className="text-slate-700 hover:bg-slate-50/50">
+              <TableCell className="py-4 font-mono font-bold text-slate-500">
+                {c.id}
+              </TableCell>
+              <TableCell className="py-4">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-bold capitalize ${getCategoryBadgeClass(c.category)}`}
                 >
-                  Belum ada kasus yang digabungkan. Jalankan simulasi duplikasi
-                  di panel kanan!
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                  {c.category}
+                </Badge>
+              </TableCell>
+              <TableCell className="py-4">
+                <span className="font-bold text-slate-900">{c.title}</span>
+                <div className="mt-1">
+                  <Badge
+                    variant="secondary"
+                    className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200"
+                  >
+                    {c.report_count} Laporan Serupa
+                  </Badge>
+                </div>
+              </TableCell>
+              <TableCell className="py-4 text-center font-bold text-red-600">
+                {c.score} / 100
+              </TableCell>
+              <TableCell className="py-4">
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] font-bold ${getStatusBadgeClass(c.status)}`}
+                >
+                  {c.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="py-4 text-slate-400">
+                {new Date(c.created_at).toLocaleString("id-ID")}
+              </TableCell>
+            </TableRow>
+          ))}
+
+          {cases.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={6}
+                className="py-10 text-center font-medium text-slate-400"
+              >
+                Belum ada kasus yang digabungkan.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }

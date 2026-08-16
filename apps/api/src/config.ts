@@ -19,6 +19,14 @@ export const PILOT_CONFIG = {
 
 export const PRIORITY_WEIGHTS = { U: 0.30, D: 0.25, V: 0.20, T: 0.15, R: 0.10 } as const;
 
+// Pemetaan kategori -> dinas penanggung jawab (dipakai auto-route & routing manual)
+export const DINAS_BY_CATEGORY: Record<string, string> = {
+  sampah: "d-dlh",
+  drainase: "d-pupr",
+  jalan: "d-pupr",
+  lampu: "d-dishub",
+};
+
 const finite = (value: unknown, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const clamp = (value: unknown) => Math.max(0, Math.min(100, finite(value)));
 

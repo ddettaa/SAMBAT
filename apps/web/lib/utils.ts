@@ -1,3 +1,10 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
 // Helper kelas warna badge status laporan
 export function getStatusBadgeClass(status: string): string {
   switch (status) {
@@ -40,4 +47,17 @@ export function getPriorityColor(priority: number): string {
   if (priority >= 50) return "#f97316"; // Orange
   if (priority >= 25) return "#eab308"; // Yellow
   return "#10b981"; // Green
+}
+
+// URL postingan asli di X / Instagram berdasarkan source_ref
+export function getSourceUrl(source: string, sourceRef?: string): string | null {
+  if (!sourceRef) return null;
+  switch (source) {
+    case "x":
+      return `https://x.com/i/web/status/${sourceRef}`;
+    case "instagram":
+      return `https://www.instagram.com/p/${sourceRef}/`;
+    default:
+      return null;
+  }
 }

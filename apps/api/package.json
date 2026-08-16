@@ -11,6 +11,7 @@
     "worker": "bun run src/worker.ts",
     "db:migrate": "bun run database/migrate.ts",
     "db:seed": "bun run database/seed.ts",
+    "db:seed-demo": "bun run database/seed-demo.ts",
     "db:reset": "bun run database/reset.ts",
     "test:e2e": "bun run test-secure-e2e.ts",
     "test:worker": "bun run test-worker.ts",
