@@ -3,9 +3,9 @@ export const API_URL = "";
 
 // Demo API keys (bootstrap otomatis oleh apps/api saat pertama jalan)
 export const KEYS = {
-  collector: "1c4c3df62536624356e1e15e15acb637e5435aee2c8bb7cf",
-  operator: "6e2ec681e704d16e8e05479e8721c00f2851eb8368b57eff",
-  dinas: "b188d6bffe26559476d988a1e6cc5b8b96c702392ede1bcc",
+  collector: "test-collector-key",
+  operator: "test-operator-key",
+  dinas: "test-dinas-key",
 };
 
 // Pemetaan default kategori -> dinas penanggung jawab (untuk pre-select saat triage)
