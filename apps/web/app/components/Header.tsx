@@ -19,8 +19,8 @@ export default function Header({ activeTab, onTabChange }: HeaderProps) {
     <header className="flex flex-col border-b border-slate-200 bg-white/85 backdrop-blur-md sticky top-0 z-50">
       <div className="flex items-center justify-between px-8 py-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 border border-teal-100 shadow-sm">
-            <Compass className="h-6 w-6" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white">
+            <img src="/sambat-logo.jpg" className="w-full h-full object-cover" alt="SAMBAT Logo" />
           </div>
           <div>
             <h1 className="text-base font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
