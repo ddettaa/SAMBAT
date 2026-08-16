@@ -44,38 +44,38 @@ interface SeedReport {
 const REPORTS: SeedReport[] = [
   // 1. AUTO-ROUTED: PJU mati (DISHUB) — tetap diteruskan (tugas baru)
   {
-    text: "Lampu PJU mati total di Jalan A. Yani KM 5, sudah 3 malam gelap gulita berbahaya untuk motor",
+    text: "Lampu jalan (PJU) sepanjang Jl. Hasan Basri Kayutangi dekat kampus ULM banyak nang mati. Gelap gulita mun malam, rawan kejahatan. @sambat_bjm",
     source: "x", sourceRef: "1800123456789012345",
-    lat: -3.3275, lng: 114.5970,
-    pseudo: "warga_ayani",
+    lat: -3.2982, lng: 114.5862,
+    pseudo: "Rian Hidayat",
     imageBefore: PHOTOS.lampu,
     advanceTo: undefined, // biarkan auto-route yang kerjakan
   },
   // 2. AUTO-ROUTED + SELESAI: Sampah TPS (DLH)
   {
-    text: "Ada tumpukan sampah besar di dekat TPS Basirih, bau busuk sekali sudah seminggu tidak diangkut",
+    text: "Ada tumpukan sampah liar besar di pinggir jalan dekat TPS Basirih, baunya menyengat banar sampai ke pemukiman warga terdekat @sambat_bjm",
     source: "web",
     lat: -3.3450, lng: 114.5850,
-    pseudo: "Warga Basirih",
+    pseudo: "Yusuf Amin",
     imageBefore: PHOTOS.sampah,
     advanceTo: "selesai",
     imageAfter: PHOTOS.sampahAfter,
   },
   // 3. AUTO-ROUTED + DIKERJAKAN: Jalan Veteran (PUPR)
   {
-    text: "Jalan Veteran lubangnya makin parah dan dalam, bahaya buat motor malam-malam",
+    text: "Jalan di Jembatan Pasar Lama banyak nang bolong ganal, membahayakan pengendara roda dua mun handak lewat malam hari. @sambat_bjm",
     source: "web",
-    lat: -3.3210, lng: 114.5920,
-    pseudo: "Pengendara Veteran",
+    lat: -3.3182, lng: 114.5891,
+    pseudo: "Udin Baso",
     imageBefore: PHOTOS.jalan,
     advanceTo: "dikerjakan",
   },
   // 4. AUTO-ROUTED: Drainase S. Parman (PUPR) — tugas baru
   {
-    text: "Selokan di Jalan S. Parman mampet total, mun hujan lebat banyu naik ka dalam rumah",
+    text: "Banyu meluap di Siring Jl. S. Parman gara-gara parit drainase mampet total ketutup tanah dan lumpur tebal. Tolong PUPR ditengok. @sambat_bjm",
     source: "x", sourceRef: "1800223456789012345",
-    lat: -3.3420, lng: 114.5830,
-    pseudo: "ulun_banjar",
+    lat: -3.3134, lng: 114.5821,
+    pseudo: "Lana Kalsel",
     imageBefore: PHOTOS.drainase,
   },
   // 5-7. DUPLICATES: Jalan Belitung Darat (3 laporan serupa → case merge)
@@ -107,17 +107,17 @@ const REPORTS: SeedReport[] = [
   },
   // 9. SELESAI: PJU Mantuil (DISHUB) — untuk leaderboard
   {
-    text: "PJU padam total di sekitar jembatan Mantuil, gelap sekali kalau malam",
+    text: "Lampu PJU padam total di kawasan Jembatan Mantuil Ujung. Gelap banar mun malam hari, bahaya gasan warga nang bulik bagawi. @sambat_bjm",
     source: "x", sourceRef: "1800423456789012345",
     lat: -3.3550, lng: 114.6020,
-    pseudo: "mantuil_bjm",
+    pseudo: "Dewi Lestari",
     imageBefore: PHOTOS.lampu,
     advanceTo: "selesai",
     imageAfter: PHOTOS.lampuAfter,
   },
   // 10. SELESAI: Drainase Kelayan (PUPR)
   {
-    text: "Parit di Kelayan Barat penuh lumpur, air kada kawa turun sama sekali",
+    text: "Banyu meluap di parit Kelayan Barat gara-gara sampah plastik mampet total. @sambat_bjm",
     source: "instagram", sourceRef: "DxRm4kLv2wY",
     lat: -3.3380, lng: 114.5880,
     pseudo: "kelayan_barat",
@@ -127,26 +127,26 @@ const REPORTS: SeedReport[] = [
   },
   // 11. SELESAI: Sampah Pasar Lama (DLH)
   {
-    text: "Sampah berserakan di sekitar Pasar Lama, bau dan kotor sekali",
+    text: "TPS di Jalan Kuripan sampahnya meluber sampai ke jalan raya. Bau busuk banar mengganggu pejalan kaki dan bikin macet. Tolong dibersihkan @sambat_bjm",
     source: "web",
-    lat: -3.3180, lng: 114.5940,
-    pseudo: "Warga Pasar Lama",
+    lat: -3.3221, lng: 114.5945,
+    pseudo: "Siti Rahmah",
     imageBefore: PHOTOS.sampah,
     advanceTo: "selesai",
     imageAfter: PHOTOS.sampahAfter,
   },
   // 12. DIKERJAKAN: Jalan Sungai Jingah (PUPR)
   {
-    text: "Aspal Jalan Sungai Jingah pecah banyak, mohon segera ditangani",
+    text: "Jalan Pramuka dekat terminal KM 6 jalannya retak dan berlubang parah. Sering bikin macet panjang pas jam pulang kantor. @sambat_bjm",
     source: "web",
-    lat: -3.3160, lng: 114.5990,
-    pseudo: "Warga Sungai Jingah",
+    lat: -3.3262, lng: 114.6111,
+    pseudo: "Hendra Wijaya",
     imageBefore: PHOTOS.jalan,
     advanceTo: "dikerjakan",
   },
   // 13. OVERDUE SLA: PJU Pramuka — SLA terlewat 2 hari (untuk demo eskalasi)
   {
-    text: "Lampu jalan mati dekat simpang empat Pramuka, sudah berhari-hari",
+    text: "Lampu jalan mati dekat simpang empat Pramuka, sudah berhari-hari @sambat_bjm",
     source: "x", sourceRef: "1800523456789012345",
     lat: -3.3280, lng: 114.6150,
     pseudo: "Warga Pramuka",
@@ -156,7 +156,7 @@ const REPORTS: SeedReport[] = [
   },
   // 14. BANJAR LANGUAGE: Genangan Teluk Dalam
   {
-    text: "Imbah hujan, banyu kada turun di kelurahan Teluk Dalam, genangan sampai lutut",
+    text: "Imbah hujan, banyu kada turun di kelurahan Teluk Dalam, genangan sampai lutut @sambat_bjm",
     source: "instagram", sourceRef: "ExYm6pMv3xZ",
     lat: -3.3260, lng: 114.5800,
     pseudo: "teluk_dalam_bjm",
