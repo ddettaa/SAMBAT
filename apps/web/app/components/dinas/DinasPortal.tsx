@@ -77,9 +77,16 @@ export default function DinasPortal({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleAction = async (reportId: string, status: string, note: string, imageAfter?: string) => {
+  const handleAction = async (
+    reportId: string,
+    status: string,
+    note: string,
+    imageAfter?: string,
+    repairLat?: number,
+    repairLng?: number
+  ) => {
     setBusy(reportId);
-    const result = await updateReportStatus(reportId, status, note, imageAfter);
+    const result = await updateReportStatus(reportId, status, note, imageAfter, repairLat, repairLng);
     if (result.ok) {
       resetCompletion();
       onDataChanged();
@@ -108,7 +115,7 @@ export default function DinasPortal({
     const lat = fixLat || report.latitude || 0;
     const lng = fixLng || report.longitude || 0;
     const note = `Diselesaikan oleh ${dinasShort}. Lokasi perbaikan: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    await handleAction(report.id, "selesai", note, proofPhoto);
+    await handleAction(report.id, "selesai", note, proofPhoto, lat, lng);
   };
 
   // Langkah saat ini berdasarkan status

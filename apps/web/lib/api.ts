@@ -66,16 +66,18 @@ export function routeReport(reportId: string, dinasId: string) {
   );
 }
 
-// Dinas: ambil tugas / selesaikan tugas
+// Dinas: ambil tugas / selesaikan tugas (dengan koordinat lokasi perbaikan)
 export function updateReportStatus(
   reportId: string,
   status: string,
   note: string,
-  imageAfter?: string
+  imageAfter?: string,
+  repairLat?: number,
+  repairLng?: number
 ) {
   return postJson(
     `/api/reports/${reportId}/status`,
-    { status, note, imageAfter },
+    { status, note, imageAfter, repairLat, repairLng },
     KEYS.dinas
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Check, ExternalLink } from "lucide-react";
+import dynamic from "next/dynamic";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getPriorityColor, getSourceUrl } from "@/lib/utils";
 import type { ReportDetail, TimelineEvent } from "@/lib/types";
+
+// Leaflet butuh browser
+const RepairMap = dynamic(() => import("./RepairMap"), { ssr: false });
 
 interface TicketTrackerProps {
   trackId: string;
@@ -163,6 +167,42 @@ export default function TicketTracker({
               </figcaption>
             </figure>
           </div>
+
+          <Separator />
+
+          {/* Peta lokasi laporan vs perbaikan (jika sudah ada koordinat perbaikan) */}
+          {trackedReport.repair_lat && trackedReport.repair_lng && trackedReport.latitude && trackedReport.longitude && (
+            <div>
+              <p className="text-[13px] font-bold text-slate-700">
+                Lokasi Perbaikan
+              </p>
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                Lingkaran teal = lokasi laporan, pin hijau = titik perbaikan.
+              </p>
+              <div className="mt-2">
+                <RepairMap
+                  reportLat={trackedReport.latitude}
+                  reportLng={trackedReport.longitude}
+                  repairLat={trackedReport.repair_lat}
+                  repairLng={trackedReport.repair_lng}
+                />
+              </div>
+              <div className="mt-2 flex items-center gap-4 font-mono text-[10px] text-slate-500">
+                <span>
+                  Laporan:{" "}
+                  <strong className="text-teal-700">
+                    {trackedReport.latitude.toFixed(5)}, {trackedReport.longitude.toFixed(5)}
+                  </strong>
+                </span>
+                <span>
+                  Perbaikan:{" "}
+                  <strong className="text-emerald-700">
+                    {trackedReport.repair_lat.toFixed(5)}, {trackedReport.repair_lng.toFixed(5)}
+                  </strong>
+                </span>
+              </div>
+            </div>
+          )}
 
           <Separator />
 

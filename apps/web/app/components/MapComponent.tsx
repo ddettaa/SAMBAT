@@ -269,23 +269,53 @@ export default function MapComponent({ reports, onSelectReport }: MapComponentPr
     }
   };
 
-  // Update markers laporan warga
+  // Update markers laporan warga + titik perbaikan
   useEffect(() => {
     if (!mapRef.current || !reportLayerRef.current) return;
     reportLayerRef.current.clearLayers();
+
+    // Icon pin hijau untuk titik perbaikan (selesai + ada koordinat)
+    const repairIcon = L.divIcon({
+      className: "repair-done-pin",
+      html: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 22],
+    });
 
     reports.forEach((report) => {
       const lat = report.latitude;
       const lng = report.longitude;
       if (lat && lng && Number.isFinite(lat) && Number.isFinite(lng)) {
+        // Marker perbaikan (hijau) — untuk laporan selesai dengan koordinat perbaikan
+        if (report.repair_lat && report.repair_lng && report.status === "selesai") {
+          const repairMarker = L.marker([report.repair_lat, report.repair_lng], {
+            icon: repairIcon,
+            zIndexOffset: 500,
+          });
+          repairMarker.bindPopup(
+            `<div style="font-family:sans-serif;min-width:150px;">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#059669"></span>
+                <strong style="color:#059669;font-size:12px;">Titik Perbaikan</strong>
+              </div>
+              <p style="margin:0;font-size:11px;color:#4b5563;">${report.location_text || "Lokasi perbaikan"}</p>
+              <div style="margin-top:4px;font-size:10px;color:#9ca3af;">
+                ${report.id} &middot; ${report.category} &middot; Selesai
+              </div>
+            </div>`
+          );
+          reportLayerRef.current!.addLayer(repairMarker);
+        }
+
+        // Marker laporan (warna prioritas) — tetap tampil
         const priorityColor = getPriorityColorHex(report.priority);
         const marker = L.circleMarker([lat, lng], {
-          radius: 8,
+          radius: report.status === "selesai" ? 5 : 8,
           fillColor: priorityColor,
           color: "#ffffff",
           weight: 2,
-          opacity: 0.9,
-          fillOpacity: 0.8,
+          opacity: report.status === "selesai" ? 0.5 : 0.9,
+          fillOpacity: report.status === "selesai" ? 0.4 : 0.8,
         });
         marker.bindPopup(
           `<div style="font-family:sans-serif;min-width:160px;">

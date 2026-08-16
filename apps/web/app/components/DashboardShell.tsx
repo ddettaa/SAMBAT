@@ -20,11 +20,7 @@ export default function DashboardShell() {
       <main className="flex-1">
         {activeTab === "warga" && <WargaPortal reports={reports} />}
 
-        {activeTab === "transparansi" && (
-          <div className="p-4 sm:p-8">
-            <TransparansiPortal reports={reports} />
-          </div>
-        )}
+        {activeTab === "transparansi" && <TransparansiPortal reports={reports} />}
       </main>
     </div>
   );

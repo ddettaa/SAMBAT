@@ -27,6 +27,8 @@ export interface Report {
   sla_due?: string;
   image_before?: string;
   image_after?: string;
+  repair_lat?: number | null;
+  repair_lng?: number | null;
   created_at: string;
 }
 

@@ -97,6 +97,13 @@
   cursor: grabbing;
 }
 
+/* Repair done pin — green checkmark for completed repairs */
+.repair-done-pin {
+  background: transparent !important;
+  border: none !important;
+  cursor: default;
+}
+
 /* Leaflet Map overrides for Light Theme */
 .leaflet-container {
   background: #f1f5f9 !important;

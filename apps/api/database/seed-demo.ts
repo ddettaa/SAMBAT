@@ -268,10 +268,16 @@ async function seedDemo() {
     }
 
     if (c.advanceTo === "selesai") {
+      // Ambil koordinat laporan via PostGIS ST_Y/ST_X, tambah offset kecil
+      const [rep] = await sql`SELECT ST_Y(geom)::float AS lat, ST_X(geom)::float AS lng FROM reports WHERE id = ${c.id}`;
+      const rLat = rep?.lat ? Number(rep.lat) + 0.0005 : null;
+      const rLng = rep?.lng ? Number(rep.lng) + 0.0003 : null;
       await sql`
         UPDATE reports
         SET status = 'selesai',
             image_after = ${c.imageAfter || null},
+            repair_lat = ${rLat},
+            repair_lng = ${rLng},
             updated_at = now()
         WHERE id = ${c.id}
       `;
@@ -279,7 +285,7 @@ async function seedDemo() {
         INSERT INTO sla_events (id, report_id, status, note, actor)
         VALUES (${id("sla")}, ${c.id}, 'selesai', 'diselesaikan oleh dinas (seeder)', 'seeder')
       `;
-      console.log(`  → ${c.id}: selesai ${c.imageAfter ? "+ foto" : ""}`);
+      console.log(`  → ${c.id}: selesai + foto + koordinat perbaikan`);
     }
   }
 
