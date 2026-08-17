@@ -274,7 +274,6 @@ app.post("/api/demo/reset", requireRoles("operator"), async (c) => {
   await seedDemo();
   return c.json({ ok: true, message: "Database reset dengan data demo lengkap (via pipeline asli)" });
 });
-});
 
 app.post("/api/demo/simulate", requireRoles("operator"), async (c) => {
   const body = await c.req.json().catch(() => null);
