@@ -1,0 +1,5 @@
+# Dependency opsional untuk AI fallback (browser-use) di playwright_collector.py.
+# Install hanya bila ingin mode self-healing saat DOM X/Instagram berubah:
+#   pip install -r requirements-ai.txt
+# Konfigurasi via BROWSER_USE_LLM_* di .env (fallback otomatis ke LLM_* apps/ai/.env).
+browser-use>=0.7,<2
