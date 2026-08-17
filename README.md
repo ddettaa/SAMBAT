@@ -219,39 +219,59 @@ curl http://localhost:3001/api/health
 
 ### 6. Collector X & Instagram (opsional)
 
+Arsitektur hybrid: **Playwright sebagai jalur utama** (cepat, gratis, deterministik) dengan
+**AI fallback via [browser-use](https://github.com/browser-use/browser-use)** yang aktif otomatis
+hanya bila selector DOM rusak karena X/Instagram mengubah tampilan (self-healing).
+
 ```bash
 cd apps/collector
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate   # Windows: python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
+playwright install chromium
 cp .env.example .env
 ```
 
 Isi `.env`:
 
 ```env
-SAMBAT_SOCIAL_ACCOUNT=SAMBAT_BJM
-X_USERNAME=SAMBAT_BJM
+SAMBAT_SOCIAL_ACCOUNT=sambatbjm
+X_USERNAME=sambatbjm
 X_PASSWORD=your-password
-INSTAGRAM_USERNAME=SAMBAT_BJM
+INSTAGRAM_USERNAME=sambatbjm
 INSTAGRAM_PASSWORD=your-password
-PLAYWRIGHT_SESSION_DIR=/var/lib/sambat/browser   # macOS/Linux
-# PLAYWRIGHT_SESSION_DIR=C:\sambat\browser       # Windows
+COLLECTOR_API_KEY=   # WAJIB — sama persis dengan COLLECTOR_API_KEY di apps/api/.env
 ```
+
+`PLAYWRIGHT_SESSION_DIR` default otomatis per-OS (Linux: `/var/lib/sambat/browser`,
+Windows: `%LOCALAPPDATA%\sambat\browser`) — tidak perlu diatur kecuali ingin lokasi kustom.
 
 Login sekali (browser akan terbuka; selesaikan OTP/CAPTCHA):
 
 ```bash
-python3 playwright_collector.py --login x
-python3 playwright_collector.py --login instagram
+python playwright_collector.py --login x
+python playwright_collector.py --login instagram
 ```
 
 Polling manual:
 
 ```bash
-python3 playwright_collector.py --once
+python playwright_collector.py --once            # jalur Playwright + AI fallback bila perlu
+python playwright_collector.py --once --no-ai    # Playwright saja
+python playwright_collector.py --once --dry-run  # kumpulkan tanpa submit (tanpa API key)
 ```
 
+AI fallback (opsional) memakai LLM OpenAI-compatible:
+
+```bash
+pip install -r requirements-ai.txt   # browser-use
+```
+
+Set `BROWSER_USE_LLM_BASE_URL` / `BROWSER_USE_LLM_API_KEY` / `BROWSER_USE_LLM_MODEL` di `.env`,
+atau biarkan kosong — otomatis jatuh ke `LLM_*` dari `apps/ai/.env`.
+
 > Password tidak pernah masuk database/log. Session cookie disimpan dengan permission 600.
+> Kunci anti-duplikasi adalah `sourceRef` (ID tweet / shortcode IG) — divalidasi regex
+> `^[A-Za-z0-9_-]+$` di kedua sisi sebelum masuk `collector_inbox`.
 
 ### 7. Production (Linux / VPS)
 
