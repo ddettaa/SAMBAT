@@ -267,7 +267,7 @@ def ai_fallback(source: str) -> list[dict[str, str]] | None:
         return None
 
     url = (
-        os.environ.get("X_MENTIONS_URL", "https://x.com/notifications/mentions")
+        os.environ.get("X_MENTIONS_URL", f"https://x.com/search?q=%40{ACCOUNT}&f=live")
         if source == "x"
         else os.environ.get("INSTAGRAM_MENTIONS_URL", "https://www.instagram.com/")
     )
@@ -338,9 +338,10 @@ class LegitEmpty(list):
 
 
 def collect_x(page: Page) -> list[dict[str, str]] | None:
-    # Halaman mentions yang benar ada di bawah /notifications — bukan /@akun/mentions
-    # (URL lama menampilkan halaman "doesn't exist").
-    url = os.environ.get("X_MENTIONS_URL", "https://x.com/notifications/mentions")
+    # Koleksi via SEARCH live, bukan tab /notifications/mentions: X quality-filter
+    # notifikasi mention dari akun kecil (terbukti: mention asli tidak muncul di tab
+    # Mentions, tapi muncul di pencarian). f=live = urutkan terbaru.
+    url = os.environ.get("X_MENTIONS_URL", f"https://x.com/search?q=%40{ACCOUNT}&f=live")
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
     page.wait_for_timeout(2500)
     if looks_like_login(page, "x"):
@@ -355,7 +356,7 @@ def collect_x(page: Page) -> list[dict[str, str]] | None:
             status_id = href.split("/status/", 1)[1].split("?", 1)[0].split("/", 1)[0]
             if status_id.isdigit():
                 result.append({"source": "x", "sourceRef": status_id, "text": text})
-    if not result and page.locator("text=Nothing to see here").count():
+    if not result and (page.locator("text=Nothing to see here").count() or page.locator("text=No results for").count()):
         print("x: belum ada mentions (empty-state resmi X) — skip AI fallback", file=sys.stderr)
         return LegitEmpty()
     return result
