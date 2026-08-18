@@ -19,6 +19,10 @@ venv/
 .env.local
 .env.*.local
 
+# session/cookie exports — full account access, never commit
+*-cookies.json
+*-state.json
+
 # runtime
 *.log
 data/

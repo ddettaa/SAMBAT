@@ -244,7 +244,19 @@ INSTAGRAM_PASSWORD=your-password
 COLLECTOR_API_KEY=   # WAJIB — sama persis dengan COLLECTOR_API_KEY di apps/api/.env
 ```
 
-Login sekali per akun (browser terbuka; selesaikan OTP/CAPTCHA bila diminta):
+Login sekali per akun — **dua cara, pilih yang pertama kalau bisa**:
+
+**Cara A — import cookies (PALING AMAN, disarankan):** login manual di browser biasa
+(Chrome/Firefox) ke x.com / instagram.com, ekspor cookies via ekstensi Cookie-Editor,
+lalu injeksi tanpa pernah menyentuh login otomatis:
+
+```bash
+python playwright_collector.py --import-cookies x --file x-cookies.json
+python playwright_collector.py --import-cookies instagram --file ig-cookies.json
+# tanpa file: set X_AUTH_TOKEN/X_CT0 (atau INSTAGRAM_SESSIONID/dst.) di .env lalu --import-cookies x
+```
+
+**Cara B — login otomatis (berisiko di-flag bot, akun baru rentan suspensi):**
 
 ```bash
 python playwright_collector.py --login x

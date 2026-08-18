@@ -22,6 +22,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -146,6 +147,91 @@ def session_ctx(source: str, headless: bool, humanize: bool = False):
 
 def persistent_page(context) -> Page:
     return context.pages[0] if context.pages else context.new_page()
+
+
+# ── Import cookies (lebih aman daripada login otomatis) ─────────────────────
+# Login flow adalah aksi yang paling dicurigai X/IG. Dengan import cookies dari
+# browser asli (login manual sekali), collector tidak pernah menyentuh login flow.
+# Format file: array cookie standar (hasil ekspor ekstensi Cookie-Editor dkk.)
+COOKIE_DOMAIN = {"x": ".x.com", "instagram": ".instagram.com"}
+SAMESITE_MAP = {"strict": "Strict", "lax": "Lax", "no_restriction": "None", "none": "None"}
+
+
+def normalize_cookies(source: str, raw: list) -> list[dict]:
+    # ct0/csrftoken adalah token CSRF yang dirotasi server dan sering diekspor
+    # tanpa expiry — tanpa expiry mereka jadi session cookie yang hilang saat
+    # context ditutup. Default 30 hari; server menimpanya saat request pertama.
+    csrf_names = {"ct0", "csrftoken"}
+    out: list[dict] = []
+    for c in raw if isinstance(raw, list) else []:
+        name = str(c.get("name", "")).strip()
+        value = str(c.get("value", "")).strip()
+        if not name or not value:
+            continue
+        same = SAMESITE_MAP.get(str(c.get("sameSite", "lax")).lower(), "Lax")
+        cookie: dict = {
+            "name": name,
+            "value": value,
+            "domain": str(c.get("domain") or COOKIE_DOMAIN[source]),
+            "path": str(c.get("path") or "/"),
+            "secure": bool(c.get("secure", True)),
+            "httpOnly": bool(c.get("httpOnly", False)),
+            "sameSite": same,
+        }
+        exp = float(c.get("expirationDate") or c.get("expires") or 0)
+        if exp <= 0 and name.lower() in csrf_names:
+            exp = time.time() + 30 * 86400
+        if exp > 0:
+            cookie["expires"] = exp
+        out.append(cookie)
+    return out
+
+
+def env_cookies(source: str) -> list[dict]:
+    """Alternatif tanpa file: token penting langsung dari environment."""
+    if source == "x":
+        auth = os.environ.get("X_AUTH_TOKEN", "").strip()
+        if not auth:
+            return []
+        return [
+            {"name": "auth_token", "value": auth, "domain": ".x.com", "path": "/", "secure": True, "httpOnly": True, "sameSite": "Lax"},
+            {"name": "ct0", "value": os.environ.get("X_CT0", "").strip(), "domain": ".x.com", "path": "/", "secure": True, "httpOnly": False, "sameSite": "Lax"},
+        ]
+    sid = os.environ.get("INSTAGRAM_SESSIONID", "").strip()
+    if not sid:
+        return []
+    return [
+        {"name": "sessionid", "value": sid, "domain": ".instagram.com", "path": "/", "secure": True, "httpOnly": True, "sameSite": "Lax"},
+        {"name": "csrftoken", "value": os.environ.get("INSTAGRAM_CSRFTOKEN", "").strip(), "domain": ".instagram.com", "path": "/", "secure": True, "httpOnly": False, "sameSite": "Lax"},
+        {"name": "ds_user_id", "value": os.environ.get("INSTAGRAM_DS_USER_ID", "").strip(), "domain": ".instagram.com", "path": "/", "secure": True, "httpOnly": True, "sameSite": "Lax"},
+    ]
+
+
+def import_cookies(source: str, file: str | None) -> int:
+    """Injeksi cookies ke profile persisten — tanpa pernah menjalankan login otomatis."""
+    if file:
+        path = Path(file).expanduser()
+        if not path.is_file():
+            raise SystemExit(f"file cookie tidak ditemukan: {path}")
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))  # toleran BOM dari PowerShell/editor
+    else:
+        raw = env_cookies(source)
+        if not raw:
+            raise SystemExit(
+                f"tidak ada cookie untuk {source}. Sediakan --file cookies.json atau set "
+                + ("X_AUTH_TOKEN (+ X_CT0) di .env" if source == "x" else "INSTAGRAM_SESSIONID (+ INSTAGRAM_CSRFTOKEN) di .env")
+            )
+    cookies = normalize_cookies(source, raw)
+    if not cookies:
+        raise SystemExit("cookie kosong/tidak valid setelah dinormalisasi")
+    ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    context = session_ctx(source, headless=True)
+    try:
+        context.add_cookies(cookies)  # masuk ke jar profile — persisten setelah context ditutup
+    finally:
+        context.close()
+    print(json.dumps({"ok": True, "source": source, "imported": len(cookies), "profile": str(profile_dir(source))}))
+    return 0
 
 
 def secure(path: Path) -> None:
@@ -450,7 +536,9 @@ def run_once(sources: list[str], dry_run: bool = False, use_ai_fallback: bool = 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="SAMBAT X & Instagram mention collector (CloakBrowser)")
-    parser.add_argument("--login", choices=["x", "instagram"], help="interactive login — sekali saja, sesi tersimpan permanen di profile")
+    parser.add_argument("--login", choices=["x", "instagram"], help="interactive login otomatis — RISIKO TINGGI di-flag; utamakan --import-cookies")
+    parser.add_argument("--import-cookies", choices=["x", "instagram"], metavar="SOURCE", help="injeksi cookies dari browser asli (aman — tanpa login otomatis)")
+    parser.add_argument("--file", help="path file cookies JSON (dipakai bersama --import-cookies; tanpa ini dibaca dari .env)")
     parser.add_argument("--once", action="store_true", help="collect mentions once and submit to the API")
     parser.add_argument("--source", choices=["x", "instagram"], action="append", help="restrict --once to specific source(s)")
     parser.add_argument("--dry-run", action="store_true", help="collect without submitting (no API key needed)")
@@ -464,9 +552,11 @@ def main() -> int:
         finally:
             context.close()
         return 0
+    if args.import_cookies:
+        return import_cookies(args.import_cookies, args.file)
     if args.once:
         return run_once(args.source or ["x", "instagram"], dry_run=args.dry_run, use_ai_fallback=not args.no_ai)
-    parser.error("use --login SOURCE or --once [--dry-run] [--no-ai]")
+    parser.error("use --import-cookies SOURCE [--file F], --login SOURCE, or --once [--dry-run] [--no-ai]")
     return 2
 
 
