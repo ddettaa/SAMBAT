@@ -53,6 +53,14 @@ if (import.meta.main) {
       floodSync = { ok: false, error: String(error?.message || error) };
     }
   }
-  console.log(JSON.stringify({ sla: await processSla(sql), floodSync }));
+  // Ingest pending collector_inbox → reports (webhook dari Playwright collector).
+  const { runCollectorOnce } = await import("./collector");
+  let collector: any = { skipped: true };
+  try {
+    collector = await runCollectorOnce();
+  } catch (error: any) {
+    collector = { ok: false, error: String(error?.message || error) };
+  }
+  console.log(JSON.stringify({ sla: await processSla(sql), collector, floodSync }));
   await sql.close();
 }
