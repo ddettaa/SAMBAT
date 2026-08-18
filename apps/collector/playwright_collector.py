@@ -102,6 +102,28 @@ def first_visible(page: Page, selectors: list[str]):
     return None
 
 
+def human_fill(page: Page, selectors: list[str], value: str) -> bool:
+    """Isi field pertama yang benar-benar bisa menerima input.
+
+    DOM X/IG memuat form duplikat (login + signup); elemen pertama yang terlihat
+    bisa saja tertutup overlay <DIV> — humanize cloak menolak klik elemen tertutup.
+    Coba setiap kandidat berikutnya, lalu fallback force, sebelum menyerah.
+    """
+    for sel in selectors:
+        loc = page.locator(sel)
+        for i in range(loc.count()):
+            el = loc.nth(i)
+            if not el.is_visible():
+                continue
+            for kwargs in ({}, {"force": True}):
+                try:
+                    el.fill(value, **kwargs)
+                    return True
+                except Exception:
+                    continue
+    return False
+
+
 def profile_dir(source: str) -> Path:
     return ROOT / f"{source}-profile"
 
@@ -149,12 +171,18 @@ def looks_like_login(page: Page, source: str) -> bool:
 
 
 def click_primary(page: Page) -> None:
-    """Klik tombol submit utama (label beda-beda per bahasa/platform)."""
+    """Klik tombol submit utama (label beda-beda per bahasa/platform).
+
+    Tahan terhadap tombol duplikat/tertutup overlay: coba tiap kandidat,
+    akhirnya fallback tekan Enter.
+    """
     for label in ("Log in", "Masuk", "Login", "Lanjutkan", "Sign in"):
-        btn = page.locator(f'button:text-is("{label}")')
-        if btn.count():
-            btn.first.click()
-            return
+        for btn in page.locator(f'button:text-is("{label}")').all():
+            try:
+                btn.click(timeout=3000)
+                return
+            except Exception:
+                continue
     page.keyboard.press("Enter")
 
 
@@ -169,22 +197,25 @@ def login(page: Page, source: str) -> None:
     if source == "x":
         page.goto("https://x.com/i/flow/login", wait_until="domcontentloaded", timeout=45_000)
         page.wait_for_timeout(4000)  # form dirender via JS; beri waktu render
-        user_field = first_visible(page, USERNAME_SELECTORS)
-        if not user_field:
+        # Flow DUA LANGKAH (X 2025+): (1) username → "Lanjutkan" → (2) password → "Log in".
+        # Kedua field ada di DOM sejak awal (form step-2 pre-render) — JANGAN isi
+        # password sebelum tombol Lanjutkan diklik dan step-2 aktif.
+        if not first_visible(page, USERNAME_SELECTORS):
             print("x: kolom username tidak ditemukan — lanjutkan login manual di browser", file=sys.stderr)
         else:
-            user_field.fill(username)
-        pass_field = first_visible(page, PASSWORD_SELECTORS)
-        if pass_field and password:  # form gabungan (DOM 2025+): username+password satu halaman
-            pass_field.fill(password)
-            click_primary(page)
-        else:  # flow lama dua langkah: Enter setelah username, password muncul belakangan
-            page.keyboard.press("Enter")
-            page.wait_for_timeout(1500)
-            pass_field = first_visible(page, PASSWORD_SELECTORS)
+            human_fill(page, USERNAME_SELECTORS, username)
+            click_primary(page)  # step 1: "Lanjutkan"
+            pass_field = None
+            for _ in range(10):  # tunggu step-2 render (maks ~10 detik)
+                page.wait_for_timeout(1000)
+                pass_field = first_visible(page, PASSWORD_SELECTORS)
+                if pass_field:
+                    break
             if password and pass_field:
-                pass_field.fill(password)
-                page.keyboard.press("Enter")
+                human_fill(page, PASSWORD_SELECTORS, password)
+                click_primary(page)  # step 2: "Log in"
+            elif not pass_field:
+                print("x: kolom password tidak muncul (verifikasi username/OTP?) — lanjutkan manual di browser", file=sys.stderr)
     else:
         page.goto("https://www.instagram.com/accounts/login/", wait_until="domcontentloaded", timeout=45_000)
         page.wait_for_timeout(3000)
@@ -193,11 +224,11 @@ def login(page: Page, source: str) -> None:
         if not user_field:
             print("instagram: kolom username tidak ditemukan — lanjutkan login manual di browser", file=sys.stderr)
         elif password and pass_field:
-            user_field.fill(username)
-            pass_field.fill(password)
+            human_fill(page, IG_USERNAME_SELECTORS, username)
+            human_fill(page, IG_PASSWORD_SELECTORS, password)
             click_primary(page)
         else:
-            user_field.fill(username)
+            human_fill(page, IG_USERNAME_SELECTORS, username)
             page.keyboard.press("Enter")
     print(f"Complete any OTP/CAPTCHA in the browser for {source}; press Enter here when home/feed is visible.", flush=True)
     input()
@@ -236,7 +267,7 @@ def ai_fallback(source: str) -> list[dict[str, str]] | None:
         return None
 
     url = (
-        os.environ.get("X_MENTIONS_URL", f"https://x.com/{ACCOUNT}/mentions")
+        os.environ.get("X_MENTIONS_URL", "https://x.com/notifications/mentions")
         if source == "x"
         else os.environ.get("INSTAGRAM_MENTIONS_URL", "https://www.instagram.com/")
     )
@@ -298,8 +329,18 @@ def ai_fallback(source: str) -> list[dict[str, str]] | None:
     return result
 
 
+class LegitEmpty(list):
+    """List kosong yang berarti 'memang belum ada mentions' — bukan selector rusak.
+
+    Menandai empty-state resmi X ("Nothing to see here") agar run_once
+    tidak memicu AI fallback yang sia-sia.
+    """
+
+
 def collect_x(page: Page) -> list[dict[str, str]] | None:
-    url = os.environ.get("X_MENTIONS_URL", f"https://x.com/{ACCOUNT}/mentions")
+    # Halaman mentions yang benar ada di bawah /notifications — bukan /@akun/mentions
+    # (URL lama menampilkan halaman "doesn't exist").
+    url = os.environ.get("X_MENTIONS_URL", "https://x.com/notifications/mentions")
     page.goto(url, wait_until="domcontentloaded", timeout=45_000)
     page.wait_for_timeout(2500)
     if looks_like_login(page, "x"):
@@ -314,6 +355,9 @@ def collect_x(page: Page) -> list[dict[str, str]] | None:
             status_id = href.split("/status/", 1)[1].split("?", 1)[0].split("/", 1)[0]
             if status_id.isdigit():
                 result.append({"source": "x", "sourceRef": status_id, "text": text})
+    if not result and page.locator("text=Nothing to see here").count():
+        print("x: belum ada mentions (empty-state resmi X) — skip AI fallback", file=sys.stderr)
+        return LegitEmpty()
     return result
 
 
@@ -371,7 +415,7 @@ def run_once(sources: list[str], dry_run: bool = False, use_ai_fallback: bool = 
             context.close()  # profile tersimpan otomatis — sesi bertahan untuk run berikutnya
         if items is None:
             continue  # session expired / diminta login ulang
-        if not items and use_ai_fallback:
+        if not items and use_ai_fallback and not isinstance(items, LegitEmpty):
             # Selector utama tidak menemukan apa pun — kemungkinan DOM berubah.
             # Serahkan ke LLM agent (browser-use) sebagai self-healing fallback.
             print(f"{source}: 0 item via selector — mencoba AI fallback", file=sys.stderr)
