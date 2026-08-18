@@ -219,15 +219,17 @@ curl http://localhost:3001/api/health
 
 ### 6. Collector X & Instagram (opsional)
 
-Arsitektur hybrid: **Playwright sebagai jalur utama** (cepat, gratis, deterministik) dengan
-**AI fallback via [browser-use](https://github.com/browser-use/browser-use)** yang aktif otomatis
-hanya bila selector DOM rusak karena X/Instagram mengubah tampilan (self-healing).
+Engine: **CloakBrowser** — Chromium stealth dengan patch level C++ (drop-in Playwright
+replacement) + **profile persisten**: login sekali per akun, sesi bertahan antar-run
+(cookies + localStorage tersimpan otomatis). Jika selector DOM berubah, AI fallback
+opsional via [browser-use](https://github.com/browser-use/browser-use) mengambil alih
+(self-healing).
 
 ```bash
 cd apps/collector
 python3 -m venv .venv && source .venv/bin/activate   # Windows: python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
-playwright install chromium
+python -m cloakbrowser login   # opsional tapi disarankan — key gratis via sign-in GitHub (binary terbaru)
 cp .env.example .env
 ```
 
@@ -242,10 +244,7 @@ INSTAGRAM_PASSWORD=your-password
 COLLECTOR_API_KEY=   # WAJIB — sama persis dengan COLLECTOR_API_KEY di apps/api/.env
 ```
 
-`PLAYWRIGHT_SESSION_DIR` default otomatis per-OS (Linux: `/var/lib/sambat/browser`,
-Windows: `%LOCALAPPDATA%\sambat\browser`) — tidak perlu diatur kecuali ingin lokasi kustom.
-
-Login sekali (browser akan terbuka; selesaikan OTP/CAPTCHA):
+Login sekali per akun (browser terbuka; selesaikan OTP/CAPTCHA bila diminta):
 
 ```bash
 python playwright_collector.py --login x
@@ -255,9 +254,9 @@ python playwright_collector.py --login instagram
 Polling manual:
 
 ```bash
-python playwright_collector.py --once            # jalur Playwright + AI fallback bila perlu
-python playwright_collector.py --once --no-ai    # Playwright saja
+python playwright_collector.py --once            # collect + submit ke API
 python playwright_collector.py --once --dry-run  # kumpulkan tanpa submit (tanpa API key)
+python playwright_collector.py --once --no-ai    # tanpa AI fallback
 ```
 
 AI fallback (opsional) memakai LLM OpenAI-compatible:
@@ -269,9 +268,11 @@ pip install -r requirements-ai.txt   # browser-use
 Set `BROWSER_USE_LLM_BASE_URL` / `BROWSER_USE_LLM_API_KEY` / `BROWSER_USE_LLM_MODEL` di `.env`,
 atau biarkan kosong — otomatis jatuh ke `LLM_*` dari `apps/ai/.env`.
 
-> Password tidak pernah masuk database/log. Session cookie disimpan dengan permission 600.
-> Kunci anti-duplikasi adalah `sourceRef` (ID tweet / shortcode IG) — divalidasi regex
-> `^[A-Za-z0-9_-]+$` di kedua sisi sebelum masuk `collector_inbox`.
+> Password tidak pernah masuk database/log. Sesi tersimpan di profile persisten
+> (`SESSION_DIR`, default otomatis per-OS) plus backup portabel `{source}-state.json`
+> dengan permission 600. Kunci anti-duplikasi adalah `sourceRef` (ID tweet /
+> shortcode IG) — divalidasi regex `^[A-Za-z0-9_-]+$` di kedua sisi sebelum masuk
+> `collector_inbox`.
 
 ### 7. Production (Linux / VPS)
 

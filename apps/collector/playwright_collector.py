@@ -1,13 +1,18 @@
 #!/usr/bin/env python3
-"""SAMBAT social collector.
+"""SAMBAT social collector — CloakBrowser edition.
 
-First run: python3 playwright_collector.py --login x
-Polling:  python3 playwright_collector.py --once
-Dry run:  python3 playwright_collector.py --once --dry-run
+First run: python playwright_collector.py --login x
+Polling:  python playwright_collector.py --once
+Dry run:  python playwright_collector.py --once --dry-run
 
-Configuration is read from apps/collector/.env (next to this script) and can
-be overridden by real environment variables (e.g. systemd EnvironmentFile).
-The browser storage state contains cookies only and must stay mode 600.
+Engine: CloakBrowser — Chromium stealth dengan patch level C++ (drop-in
+Playwright API). Sesi memakai profile persisten per-source: cookies +
+localStorage bertahan antar-run, jadi cukup --login SEKALI per akun.
+storage_state JSON tetap diekspor setelah login sebagai backup portabel.
+
+Install: pip install -r requirements.txt
+Disarankan: python -m cloakbrowser login   (key gratis via GitHub,
+untuk selalu dapat binary stealth terbaru).
 """
 from __future__ import annotations
 
@@ -21,7 +26,15 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import Page  # tipe saja — objek asli dihasilkan cloakbrowser
+
+try:
+    from cloakbrowser import launch_persistent_context
+except ImportError as error:  # hard dependency sejak engine CloakBrowser
+    raise SystemExit(
+        "cloakbrowser belum terpasang. Jalankan: pip install -r requirements.txt "
+        "(lalu disarankan: python -m cloakbrowser login)"
+    ) from error
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -58,24 +71,20 @@ def default_session_dir() -> str:
     return "/var/lib/sambat/browser"
 
 
-ROOT = Path(os.environ.get("PLAYWRIGHT_SESSION_DIR", default_session_dir()))
+# SESSION_DIR nama baru; PLAYWRIGHT_SESSION_DIR dihormati sebagai alias lama.
+ROOT = Path(os.environ.get("SESSION_DIR") or os.environ.get("PLAYWRIGHT_SESSION_DIR") or default_session_dir())
 API_URL = os.environ.get("SAMBAT_API_URL", "http://127.0.0.1:3001").rstrip("/")
 API_KEY = os.environ.get("COLLECTOR_API_KEY", "")
 ACCOUNT = os.environ.get("SAMBAT_SOCIAL_ACCOUNT", "SAMBAT_BJM").lstrip("@")
 
-# Stable desktop fingerprint; X/IG are far less suspicious of a normal
-# localized browser than a default headless one.
+# Locale/timezone/viewport dibuat konsisten per-sesi. User-Agent sengaja TIDAK
+# dioverride — binary cloak menjaga konsistensi UA ↔ client-hints di level C++;
+# UA custom justru menciptakan fingerprint yang saling bertentangan.
 CONTEXT_OPTS = {
-    "user_agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-        "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-    ),
     "locale": "id-ID",
     "timezone_id": "Asia/Makassar",  # WITA — Banjarmasin
     "viewport": {"width": 1280, "height": 900},
 }
-LAUNCH_ARGS = ["--disable-blink-features=AutomationControlled"]
-STEALTH_JS = "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
 
 # X berganti DOM beberapa kali; coba selector lama & baru.
 USERNAME_SELECTORS = ['input[name="username_or_email"]', 'input[autocomplete^="username"]', 'input[autocomplete="username"]']
@@ -93,14 +102,28 @@ def first_visible(page: Page, selectors: list[str]):
     return None
 
 
-def new_context(browser, storage_state: str | None = None):
-    context = browser.new_context(**({"storage_state": storage_state} if storage_state else {}), **CONTEXT_OPTS)
-    context.add_init_script(STEALTH_JS)
-    return context
+def profile_dir(source: str) -> Path:
+    return ROOT / f"{source}-profile"
 
 
 def state_path(source: str) -> Path:
     return ROOT / f"{source}-state.json"
+
+
+def session_ctx(source: str, headless: bool, humanize: bool = False):
+    """Context CloakBrowser persisten — cookies + localStorage bertahan antar-run."""
+    return launch_persistent_context(
+        str(profile_dir(source)),
+        headless=headless,
+        humanize=humanize,  # gerakan mouse/ketikan seperti manusia (dipakai saat --login)
+        locale=CONTEXT_OPTS["locale"],
+        timezone=CONTEXT_OPTS["timezone_id"],
+        viewport=CONTEXT_OPTS["viewport"],
+    )
+
+
+def persistent_page(context) -> Page:
+    return context.pages[0] if context.pages else context.new_page()
 
 
 def secure(path: Path) -> None:
@@ -136,7 +159,11 @@ def click_primary(page: Page) -> None:
 
 
 def login(page: Page, source: str) -> None:
-    """Create a persistent cookie state; human completes OTP/CAPTCHA if shown."""
+    """Login sekali; human melengkapi OTP/CAPTCHA bila diminta.
+
+    Sesi tersimpan otomatis di profile persisten saat context ditutup,
+    plus diekspor sebagai storage_state JSON (backup portabel).
+    """
     username = os.environ.get(f"{source.upper()}_USERNAME", ACCOUNT)
     password = os.environ.get(f"{source.upper()}_PASSWORD", "")
     if source == "x":
@@ -175,9 +202,9 @@ def login(page: Page, source: str) -> None:
     print(f"Complete any OTP/CAPTCHA in the browser for {source}; press Enter here when home/feed is visible.", flush=True)
     input()
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
-    page.context.storage_state(path=str(state_path(source)))
+    page.context.storage_state(path=str(state_path(source)))  # backup portabel
     secure(state_path(source))
-    print(json.dumps({"ok": True, "source": source, "state": str(state_path(source))}))
+    print(json.dumps({"ok": True, "source": source, "profile": str(profile_dir(source)), "state": str(state_path(source))}))
 
 
 def visible_text(locator) -> str:
@@ -223,11 +250,11 @@ def ai_fallback(source: str) -> list[dict[str, str]] | None:
     )
 
     async def run_agent() -> str | None:
+        state_file = state_path(source)
         profile = BrowserProfile(
-            storage_state=str(state_path(source)),
+            storage_state=str(state_file) if state_file.exists() else None,
             user_data_dir=None,  # pakai cookies dari storage_state saja (hindari warning dual-source)
             headless=True,
-            user_agent=CONTEXT_OPTS["user_agent"],
             viewport=CONTEXT_OPTS["viewport"],
             disable_security=True,
             keep_alive=False,
@@ -331,52 +358,45 @@ def run_once(sources: list[str], dry_run: bool = False, use_ai_fallback: bool = 
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     total = failed = 0
     collected: dict[str, dict[str, dict[str, str]]] = {}
-    with sync_playwright() as playwright:
-        # channel="chromium" = full Chromium "new headless" (bukan chrome-headless-shell):
-        # satu binary buat headless & headful, fingerprint lebih lengkap, lebih sulit ditandai bot.
-        browser = playwright.chromium.launch(headless=True, channel="chromium", args=LAUNCH_ARGS)
+    for source in sources:
+        if not profile_dir(source).exists():
+            print(f"skip {source}: belum ada profile sesi — jalankan --login {source} sekali", file=sys.stderr)
+            continue
+        items: list[dict[str, str]] | None = None
+        context = session_ctx(source, headless=True)
         try:
-            for source in sources:
-                path = state_path(source)
-                if not path.exists():
-                    print(f"skip {source}: no session state; run --login {source}", file=sys.stderr)
-                    continue
-                items: list[dict[str, str]] | None = None
-                context = new_context(browser, storage_state=str(path))
-                try:
-                    page = context.new_page()
-                    items = collect_x(page) if source == "x" else collect_instagram(page)
-                finally:
-                    context.close()
-                if items is None:
-                    continue  # session expired / diminta login ulang
-                if not items and use_ai_fallback:
-                    # Selector utama tidak menemukan apa pun — kemungkinan DOM berubah.
-                    # Serahkan ke LLM agent (browser-use) sebagai self-healing fallback.
-                    print(f"{source}: 0 item via selector — mencoba AI fallback", file=sys.stderr)
-                    items = ai_fallback(source) or []
-                if not items:
-                    continue
-                unique: dict[str, dict[str, str]] = {}
-                for item in items:
-                    if item["sourceRef"] not in unique:  # dedupe within a single batch
-                        unique[item["sourceRef"]] = item
-                collected[source] = unique
-                if dry_run:
-                    print(json.dumps({"source": source, "would_submit": len(unique)}, ensure_ascii=False))
-                    continue
-                for item in unique.values():
-                    if submit(item) in (200, 201, 202):
-                        total += 1
-                    else:
-                        failed += 1
+            page = persistent_page(context)
+            items = collect_x(page) if source == "x" else collect_instagram(page)
         finally:
-            browser.close()
+            context.close()  # profile tersimpan otomatis — sesi bertahan untuk run berikutnya
+        if items is None:
+            continue  # session expired / diminta login ulang
+        if not items and use_ai_fallback:
+            # Selector utama tidak menemukan apa pun — kemungkinan DOM berubah.
+            # Serahkan ke LLM agent (browser-use) sebagai self-healing fallback.
+            print(f"{source}: 0 item via selector — mencoba AI fallback", file=sys.stderr)
+            items = ai_fallback(source) or []
+        if not items:
+            continue
+        unique: dict[str, dict[str, str]] = {}
+        for item in items:
+            if item["sourceRef"] not in unique:  # dedupe within a single batch
+                unique[item["sourceRef"]] = item
+        collected[source] = unique
+        if dry_run:
+            print(json.dumps({"source": source, "would_submit": len(unique)}, ensure_ascii=False))
+            continue
+        for item in unique.values():
+            if submit(item) in (200, 201, 202):
+                total += 1
+            else:
+                failed += 1
     print(json.dumps({
         "ok": failed == 0,
         "submitted": total,
         "failed": failed,
         "account": ACCOUNT,
+        "backend": "cloakbrowser",
         "dry_run": dry_run,
         **{k: len(v) for k, v in collected.items()},
     }))
@@ -384,22 +404,20 @@ def run_once(sources: list[str], dry_run: bool = False, use_ai_fallback: bool = 
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="SAMBAT X & Instagram mention collector")
-    parser.add_argument("--login", choices=["x", "instagram"], help="interactive login to create a session state")
+    parser = argparse.ArgumentParser(description="SAMBAT X & Instagram mention collector (CloakBrowser)")
+    parser.add_argument("--login", choices=["x", "instagram"], help="interactive login — sekali saja, sesi tersimpan permanen di profile")
     parser.add_argument("--once", action="store_true", help="collect mentions once and submit to the API")
     parser.add_argument("--source", choices=["x", "instagram"], action="append", help="restrict --once to specific source(s)")
     parser.add_argument("--dry-run", action="store_true", help="collect without submitting (no API key needed)")
-    parser.add_argument("--no-ai", action="store_true", help="disable browser-use AI fallback (Playwright only)")
+    parser.add_argument("--no-ai", action="store_true", help="disable browser-use AI fallback")
     args = parser.parse_args()
     if args.login:
         ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=False, channel="chromium", args=LAUNCH_ARGS)
-            context = new_context(browser)
-            try:
-                login(context.new_page(), args.login)
-            finally:
-                browser.close()
+        context = session_ctx(args.login, headless=False, humanize=True)
+        try:
+            login(persistent_page(context), args.login)
+        finally:
+            context.close()
         return 0
     if args.once:
         return run_once(args.source or ["x", "instagram"], dry_run=args.dry_run, use_ai_fallback=not args.no_ai)

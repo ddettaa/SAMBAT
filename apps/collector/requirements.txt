@@ -1,1 +1,8 @@
-playwright>=1.49,<2
+# Engine utama collector: CloakBrowser — Chromium stealth (patch level C++),
+# drop-in Playwright API + profile persisten (login sekali, sesi bertahan antar-run).
+# Binary stealth Chromium (~200MB) terunduh otomatis pada first launch.
+cloakbrowser>=0.5
+# playwright terpasang otomatis sebagai dependency cloakbrowser.
+#
+# Disarankan — key gratis via sign-in GitHub agar selalu dapat binary terbaru:
+#   python -m cloakbrowser login
