@@ -181,6 +181,10 @@ def normalize_cookies(source: str, raw: list) -> list[dict]:
         exp = float(c.get("expirationDate") or c.get("expires") or 0)
         if exp <= 0 and name.lower() in csrf_names:
             exp = time.time() + 30 * 86400
+        elif exp <= 0:
+            # Cookie tanpa expiry (mis. dari env) akan hilang sebagai session cookie
+            # saat context ditutup — beri umur default agar persist di profile.
+            exp = time.time() + 90 * 86400
         if exp > 0:
             cookie["expires"] = exp
         out.append(cookie)
